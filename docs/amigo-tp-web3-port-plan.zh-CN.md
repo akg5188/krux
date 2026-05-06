@@ -5,8 +5,11 @@
 如果你是以后接手的人，建议先按这个顺序看：
 
 1. [Krux 仓库结构与接手说明](getting-started/installing/repo-structure.zh-CN.md)
-2. 本页
-3. [Amigo 固件从源码编译并烧录](getting-started/installing/from-source.zh-CN.md)
+2. [Amigo 中文新手入口](getting-started/index.zh-CN.md)
+3. 本页
+4. [Amigo 固件从源码编译并烧录](getting-started/installing/from-source.zh-CN.md)
+
+当前这轮能直接接手的最新快照分支是 `amigo-snapshot`，如果你是从备份仓库接手，请优先看这个分支。
 
 ## 目标
 

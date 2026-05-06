@@ -29,13 +29,16 @@ Krux is an open-source firmware facilitating the creation of Bitcoin signing dev
 如果你第一次接触这份备份仓库，先按这个顺序看：
 
 1. [Krux 仓库结构与接手说明](docs/getting-started/installing/repo-structure.zh-CN.md)
-2. [Amigo 预编译固件中文教程](docs/getting-started/installing/from-pre-built-release.zh-CN.md)
-3. [Amigo 源码编译中文教程](docs/getting-started/installing/from-source.zh-CN.md)
-4. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)
+2. [Amigo 中文新手入口](docs/getting-started/index.zh-CN.md)
+3. [Amigo 预编译固件中文教程](docs/getting-started/installing/from-pre-built-release.zh-CN.md)
+4. [Amigo 源码编译中文教程](docs/getting-started/installing/from-source.zh-CN.md)
+5. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)
 
-最省事的路径是第 2 条；如果你要改代码，再看第 1 条和第 3 条。
+最省事的路径是第 3 条；如果你想先看中文总入口，再点第 2 条。
 
 这份备份仓库的主地址是 `https://github.com/akg5188/krux`，子模块 `MaixPy` 也已经单独备份到 `https://github.com/akg5188/MaixPy`。
+
+如果你要继续这轮 Amigo 迁移，优先看备份仓库里的 `amigo-snapshot` 分支，这是一份可以直接接手的工作快照。
 
 ---
 
@@ -45,8 +48,8 @@ Detailed instructions for installing and running Krux can now be found in our [o
 ## 中文快速开始
 上面的“中文新手入口”已经把最重要的路径排好了。
 
-如果你只想先把 Amigo 刷起来，直接点第 2 条。
-如果你已经知道自己要改什么，再按第 1 条和第 3 条往下看。
+如果你只想先把 Amigo 刷起来，直接点第 3 条。
+如果你已经知道自己要改什么，再按第 1 条和第 4 条往下看。
 
 如果你以后要维护这份备份，请先记住：
 

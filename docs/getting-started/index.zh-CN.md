@@ -13,8 +13,9 @@ hide:
 1. [仓库结构与接手说明](installing/repo-structure.zh-CN.md)
 2. [Amigo 预编译包烧录](installing/from-pre-built-release.zh-CN.md)
 3. [Amigo 源码编译并烧录](installing/from-source.zh-CN.md)
-4. [Amigo 常见问题](../faq.zh-CN.md)
-5. [Amigo TP / Web3 迁移计划与接手记录](../amigo-tp-web3-port-plan.zh-CN.md)
+4. [Amigo 商用交付说明](../amigo-commercial-release.zh-CN.md)
+5. [Amigo 常见问题](../faq.zh-CN.md)
+6. [Amigo TP / Web3 迁移计划与接手记录](../amigo-tp-web3-port-plan.zh-CN.md)
 
 ## Amigo 上先看什么
 
@@ -31,6 +32,7 @@ hide:
 - `工具`：看自检、二维码、SD 卡、文件和其它辅助功能
 - `固件自检`：检查设备、触摸、SD 卡和版本信息
 - 首页的 `扫码签名`、`助记词工具`、`连接钱包`、`固件自检` 是当前最常用的四个大入口
+- 如果你想先判断这套固件能不能直接交付给用户，先看商用交付说明
 - 如果你卡在连接、打印、智能卡、USB 口或者固件大小这些问题上，先看 FAQ
 
 ## 小白最短路径
@@ -51,5 +53,6 @@ hide:
 - [Amigo 中文预编译包烧录](installing/from-pre-built-release.zh-CN.md)
 - [Amigo 中文源码编译](installing/from-source.zh-CN.md)
 - [Amigo 中文接手说明](installing/repo-structure.zh-CN.md)
+- [Amigo 商用交付说明](../amigo-commercial-release.zh-CN.md)
 - [Amigo 常见问题](../faq.zh-CN.md)
 - [Amigo 迁移计划 / 接手记录](../amigo-tp-web3-port-plan.zh-CN.md)

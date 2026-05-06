@@ -32,11 +32,13 @@ Krux is an open-source firmware facilitating the creation of Bitcoin signing dev
 2. [Amigo 中文新手入口](docs/getting-started/index.zh-CN.md)
 3. [Amigo 预编译固件中文教程](docs/getting-started/installing/from-pre-built-release.zh-CN.md)
 4. [Amigo 源码编译中文教程](docs/getting-started/installing/from-source.zh-CN.md)
-5. [Amigo 常见问题](docs/faq.zh-CN.md)
-6. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)
+5. [Amigo 商用交付说明](docs/amigo-commercial-release.zh-CN.md)
+6. [Amigo 常见问题](docs/faq.zh-CN.md)
+7. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)
 
 最省事的路径是第 3 条；如果你想先看中文总入口，再点第 2 条。
-如果你经常被“能不能接智能卡、为什么固件这么小、能不能接 USB 打印机”这些问题困住，先看第 5 条。
+如果你想先看这份固件到底能不能商用、交付范围是什么，先看第 5 条。
+如果你经常被“能不能接智能卡、为什么固件这么小、能不能接 USB 打印机”这些问题困住，先看第 6 条。
 
 这份备份仓库的主地址是 `https://github.com/akg5188/krux`，子模块 `MaixPy` 也已经单独备份到 `https://github.com/akg5188/MaixPy`。
 

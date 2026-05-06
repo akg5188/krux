@@ -61,6 +61,18 @@ If you just want to flash (or "install") Krux firmware on your device and are no
 ### Download our Krux-Installer
 [<img src="docs/img/badge_github.png" alt="github releases page" width="186">](https://github.com/selfcustody/krux-installer/releases)
 
+## 维护者入口
+下面这部分主要给要改代码、跑测试、生成截图的人看。
+如果你只是想先把 Amigo 刷起来，前面的中文新手入口已经够了。
+
+最常用的几条命令先记住：
+
+- 编译 Amigo 固件：`./krux build maixpy_amigo`
+- 烧录 Amigo 固件：`./krux flash maixpy_amigo`
+- 跑单元测试：`poetry run poe test`
+- 跑 Amigo 模拟器：`poetry run poe simulator`
+- 生成本地文档站：`poetry run poe docs`
+
 # Development
 The **instructions below are intended for programmers or developers** who would like to contribute to the project.
 
@@ -159,6 +171,8 @@ Type "help", "copyright", "credits" or "license" for more information.
 ```
 
 ## Run the device simulator
+这个模拟器适合先看界面和流程，但它不等于真机。Amigo 是触摸屏设备，真机上的触摸、相机、SD 卡和串口行为还是以实际硬件为准。
+
 This is useful for rapid code development that utilizes UI/UX. It is also good for newcomers to try Krux before purchasing a device. However, the simulator does not behave exactly as the HW device and may not have all features implemented (e.g. scanning via camera a TinySeed currently only works on the HW device).
 
 Before executing, make sure you have installed the poetry extras:
@@ -273,6 +287,8 @@ wdt.stop()
 Now, with watchdog disabled, you can use debug the device normally. Also remember to disable the `Settings > Security > Shutdown Time` setting it to `0` to no more automatic resets, and if you added any print statements to the code, they should appear whenever your code is reached.
 
 ## Create new translations - i18n
+如果你要继续补中文或者新增语言，先看这里。
+
 The project has lots of translations [here](i18n/translations), if you add new english messages in code using `t()` function, you will need to:
 
 ```bash
@@ -305,6 +321,8 @@ Learn about how to setup fonts [here](firmware/font/README.md)
 Use [this script](firmware/scripts/rgbconv.py) to generate device compatible colors from RGB values (usefull for color themes).
 
 ## Documentation
+如果你要改文档、生成本地文档站，这一节就是入口。
+
 Before change documentation, and run the mkdocs server, make sure you have installed the poetry extras:
 
 ```bash

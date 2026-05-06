@@ -1,0 +1,13 @@
+include _load-12-word-mnemonic.txt
+
+# Navigate to the Amigo "助记词工具" menu
+press BUTTON_B
+press BUTTON_A
+
+screenshot wallet_home_options.png
+
+# Navigate to Mnemonic XOR
+x3 press BUTTON_B
+press BUTTON_A
+
+screenshot xor-message.png

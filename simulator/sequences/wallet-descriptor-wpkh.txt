@@ -1,0 +1,22 @@
+include _load-12-word-mnemonic.txt
+
+# Open "连接钱包"
+x2 press BUTTON_B
+press BUTTON_A
+
+# Navigate to Wallet Descriptor
+x3 press BUTTON_B
+press BUTTON_A
+
+#screenshot wallet-load-prompt.png
+
+#Load from QR code
+x2 press BUTTON_A
+qrcode specter-desktop-singlesig-wallet.png
+wait 0.1
+
+#screenshot wallet-wpkh-load-prompt.png
+
+press BUTTON_A
+
+# screenshot wallet-loaded.png

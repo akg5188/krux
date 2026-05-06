@@ -1,0 +1,26 @@
+include _wait-for-logo.txt
+
+# Navigate to New Mnemonic
+press BUTTON_B
+press BUTTON_A
+
+# Open 16进制创建
+x2 press BUTTON_B
+press BUTTON_A
+
+screenshot new-mnemonic-length-options.png
+
+# Choose 12 words
+press BUTTON_A
+
+screenshot new-mnemonic-via-hex-prompt.png
+
+# Continue to the HEX keypad
+press BUTTON_A
+
+screenshot new-mnemonic-via-hex-input.png
+
+# Leave the keypad without creating a mnemonic
+x2 press BUTTON_C
+press BUTTON_A
+press BUTTON_A

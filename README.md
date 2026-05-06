@@ -239,15 +239,16 @@ poetry run poe simulator --sequence sequences/about.txt --sd
 poetry run poe simulator --sequence sequences/home-options.txt --no-screenshot-scale
 ```
 
-## Live debug a device (Linux)
-It is not possible to drop into a live Python REPL anymore as we disabled the `MICROPY_ENABLE_COMPILER` flag in `firmware\MaixPy\components\micropython\port\include\mpconfigport.h`. If you enable it again it will be possible to drop into a live Python REPL by issuing an interrupt with Ctrl-C:
+## 连接设备调试（Linux / Live debug）
+这部分是给开发者看的。如果你已经刷好新固件，想直接看串口输出，可以用 `screen` 连到设备。
+我们默认关闭了 `MICROPY_ENABLE_COMPILER`，所以现在不能像早期那样直接进实时 Python REPL；如果你自己重新打开这个开关，才可以用 `Ctrl-C` 打断进入命令行。
 
-If you've made a fresh build and flashed it to your device, you can connect to the device over serial connection with:
+如果你已经重新编译并刷进设备，可以用下面的命令连串口：
 ```bash
 screen /dev/tty.usbserial-device-name 115200
 ```
 
-If successful, the device should restart and you should see:
+连接成功后，设备会重启并打印启动日志，下面是一个示例：
 ```bash
 K210 bootloader by LoBo v.1.4.1
 
@@ -268,96 +269,103 @@ init i2c:2 freq:XXX
 [MAIXPY]: find ov7740
 [MAIXPY]: find ov sensor
 ```
-Some devices like Amigo have two serial ports, check the second one if you don't read data from first.
+像 Amigo 这类设备可能会出现两个串口，如果第一个没有输出，就换第二个试试。
 
-To leave `screen` serial monitor press `Ctrl+a`, followed by `k`, then confirm with `y`.
+退出 `screen` 串口监视器时，先按 `Ctrl+a`，再按 `k`，最后输入 `y` 确认。
 
-## Live debug a device using MaixPy IDE (Mac or Windows)
-Use [MaixPy IDE](https://dl.sipeed.com/shareURL/MAIX/MaixPy/ide/v0.2.5) to debug the devices. Click on `Tools > Open Terminal > New Terminal > Connect to serial port > Select a COM port available` (if didn't work, try another COM port). We have removed some support for MaixPy IDE (due to size constraints), but the debug works.
+## 使用 MaixPy IDE 调试设备（Mac / Windows）
+如果你在 Mac 或 Windows 上调试，也可以用 [MaixPy IDE](https://dl.sipeed.com/shareURL/MAIX/MaixPy/ide/v0.2.5) 通过串口看日志。
+菜单路径是 `Tools > Open Terminal > New Terminal > Connect to serial port > Select a COM port available`；如果第一个串口不行，就换另一个。
+因为体积限制，我们删掉了部分 MaixPy IDE 支持，但串口调试还是可用的。
 
-## WDT watchdog
-Krux makes use of MaixPy's [WDT watchdog module](https://wiki.sipeed.com/soft/maixpy/en/api_reference/machine/wdt.html), you can see it [here](src/krux/wdt.py). This will reset the device if not fed for some time. To stop the watchdog, when connected through the terminal, run the following (starting from v24.07.0 this is no loger possible because the Python real-time compiler and REPL were disabled):
+## WDT 看门狗
+Krux 使用了 MaixPy 的 [WDT watchdog 模块](https://wiki.sipeed.com/soft/maixpy/en/api_reference/machine/wdt.html)，代码在 [这里](src/krux/wdt.py)。如果一段时间不喂狗，设备会自动重启。
+如果你已经连上串口，想临时停掉它，可以运行下面这段代码。（从 v24.07.0 开始，因为关闭了 Python 实时编译器和 REPL，这个操作已经不再方便在设备上临时执行。）
 ```python
-# Run this everytime you want to stop the watchdog
+# 每次想停掉看门狗时都运行一次
 
 from krux.wdt import wdt
 wdt.stop()
 ```
 
-Now, with watchdog disabled, you can use debug the device normally. Also remember to disable the `Settings > Security > Shutdown Time` setting it to `0` to no more automatic resets, and if you added any print statements to the code, they should appear whenever your code is reached.
+停掉看门狗以后，你就可以正常调试设备了。别忘了把 `Settings > Security > Shutdown Time` 设成 `0`，这样设备就不会再自动重启；如果你加了 `print`，它们会在代码执行到时直接出现在串口里。
 
-## Create new translations - i18n
+## 翻译维护（i18n）
 如果你要继续补中文或者新增语言，先看这里。
 
-The project has lots of translations [here](i18n/translations), if you add new english messages in code using `t()` function, you will need to:
+项目里的翻译文件都在 [这里](i18n/translations)。如果你在代码里用 `t()` 新增了一条英文文案，就要同步处理翻译文件，否则别的语言会缺字。
 
 ```bash
-# Clean unused translations:
+# 清理没用到的翻译：
 poetry run poe i18n clean
 
-# Create a new translation file in JSON:
+# 新建一个 JSON 翻译文件：
 poetry run poe i18n new tr-TR
 
-# Use Google translate to create missing translations, copy them to respective files, review phrases and commas.
+# 用 Google 翻译补缺失内容，再复制到对应文件里，最后人工检查措辞和逗号。
 poetry run poe i18n fill
 
-# Create missing translations for a single language. Ex: Brazilian Portuguese
+# 只补某一种语言的缺失翻译，例如巴西葡萄牙语
 poetry run poe i18n fill pt-BR
 
-# Make sure all files have this new translated message:
+# 确认所有语言文件都包含这条新文案：
 poetry run poe i18n validate
 
-# Format translation files properly:
+# 格式化翻译文件：
 poetry run poe i18n prettify
 
-# Create the compiled table for krux translations.py
+# 生成给 krux translations.py 用的编译表
 poetry run poe i18n bake
 ```
 
-## Fonts
-Learn about how to setup fonts [here](firmware/font/README.md)
+## 字体说明
+如果你遇到字形缺失、字号不对、换行很怪，先看 [字体说明](firmware/font/README.md)。
 
-## Colors
-Use [this script](firmware/scripts/rgbconv.py) to generate device compatible colors from RGB values (usefull for color themes).
+## 颜色与配色
+如果你要改主题颜色，可以用 [这个脚本](firmware/scripts/rgbconv.py) 把 RGB 值转换成设备可用的颜色值。
 
-## Documentation
+## 文档维护
 如果你要改文档、生成本地文档站，这一节就是入口。
 
-Before change documentation, and run the mkdocs server, make sure you have installed the poetry extras:
+在改文档或启动 mkdocs 之前，先确保已经安装了文档相关的 poetry extras：
 
 ```bash
-# This cmd will uninstall other extras
+# 这条命令会替换掉其他 extras
 poetry install --extras docs
 
-# To install all extras, use:
+# 如果你想安装全部 extras，用这个：
 poetry install --all-extras
 ```
 
-To change lateral and upper menus on documentation, see `mkdocs.yml` file on `nav` section. To create or edit translations (TODO: need help!), read [here](i18n/README.md).
+要修改文档左侧和上方菜单，请看 `mkdocs.yml` 里的 `nav` 部分。要创建或编辑文档翻译，可以先看 [这里](i18n/README.md)。
 
-Create the documentation site locally - `http://127.0.0.1:8000/krux/`:
+在本地生成文档站点，访问 `http://127.0.0.1:8000/krux/`：
 ```bash
 poetry run poe docs
 ```
 
-# Inspired by these similar projects
-- https://github.com/SeedSigner/seedsigner for Raspberry Pi (Zero)
-- https://github.com/diybitcoinhardware/f469-disco for the F469-Discovery board
+## 参考项目
+这些项目给了 Krux 很多思路：
+- https://github.com/SeedSigner/seedsigner：Raspberry Pi（Zero）上的参考项目
+- https://github.com/diybitcoinhardware/f469-disco：F469-Discovery 开发板上的参考项目
 
-# Powered by
-- [embit](https://embit.rocks/), a Bitcoin library for Python 3 and Micropython
-- [MaixPy](https://github.com/sipeed/MaixPy), MicroPython for K210 RISC-V
-- [MicroPython](https://github.com/micropython/micropython), a lean and efficient Python implementation for microcontrollers and constrained systems
-- [Kboot](https://github.com/loboris/Kboot) and [ktool](https://github.com/loboris/ktool)
+## 依赖组件
+下面这些库和底层组件支撑了 Krux：
+- [embit](https://embit.rocks/)：Python 3 和 MicroPython 用的比特币库
+- [MaixPy](https://github.com/sipeed/MaixPy)：K210 RISC-V 上的 MicroPython 端口
+- [MicroPython](https://github.com/micropython/micropython)：面向微控制器和资源受限系统的轻量高效 Python 实现
+- [Kboot](https://github.com/loboris/Kboot) 和 [ktool](https://github.com/loboris/ktool)：启动器和刷机工具
 
-# Contributing
-Issues and pull requests welcome! Let's make this as good as it can be.
+## 贡献方式
+欢迎提 issue 和 PR。我们尽量把它做得更好。
 
-Feel free to start a [new discussion](https://github.com/selfcustody/krux/discussions) or an [issue](https://github.com/selfcustody/krux/issues) for work. When making your pull request, explain what it solves, ideally each PR should focus on solving one issue (exceptions can be made if the work is related or tightly coupled).
+你可以去 [Discussions](https://github.com/selfcustody/krux/discussions) 开讨论，或者直接提 [issue](https://github.com/selfcustody/krux/issues)。如果你要提 PR，最好先说清楚它解决了什么，尽量一个 PR 对应一个问题；如果修改彼此紧密相关，可以合在一起。
 
-**Note for PR's**: Checkout and branch off of the `develop` branch, please also make sure to explicitly target `develop`; `main` is the default branch for the latest version and also for downloading and installing Krux from source.
+**PR 注意**：请从 `develop` 分支拉分支，也请明确把目标分支指向 `develop`。`main` 是最新稳定版，同时也是从源码下载和安装时常用的分支。
 
-# Support
-For technical support installing or using Krux, you can join our [Telegram chat](https://t.me/KruxDIY). Follow us on [X (Twitter)](https://x.com/selfcustodykrux) or send a message to the [Bitcoin Forum](https://bitcointalk.org/index.php?topic=5489022.0). Also check out the [DIYbitcoin chat](https://t.me/diybitcoin) on Telegram, a broader community of tinkerers, builders and hackers!
+## 技术支持
+如果你在安装或使用 Krux 时需要帮助，可以加入我们的 [Telegram 聊天](https://t.me/KruxDIY)。
+也可以关注我们的 [X（Twitter）](https://x.com/selfcustodykrux)，或者去 [Bitcoin Forum](https://bitcointalk.org/index.php?topic=5489022.0) 发消息。
+另外，Telegram 上还有更大的 [DIYbitcoin 聊天](https://t.me/diybitcoin) 社区，适合喜欢折腾、动手和研究的人。
 
-Please do not use issues for support requests. If necessary, you can use our [Discussions](https://github.com/selfcustody/krux/discussions) to post your question here on GitHub.
+请不要把 issue 当成普通客服入口。如果需要，也可以去 [Discussions](https://github.com/selfcustody/krux/discussions) 在 GitHub 上发问。

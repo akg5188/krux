@@ -1,0 +1,22 @@
+include _load-12-word-mnemonic.txt
+
+# Open "连接钱包"
+x2 press BUTTON_B
+press BUTTON_A
+
+# Open the connect-wallet flow
+press BUTTON_A
+
+# Move to MetaMask
+x2 press BUTTON_B
+press BUTTON_A
+
+screenshot web3-connect-metamask-prompt.png
+
+press BUTTON_A
+wait 0.5
+
+screenshot web3-connect-metamask-qr.png
+
+press BUTTON_A
+wait 0.2

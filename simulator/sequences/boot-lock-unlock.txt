@@ -1,0 +1,33 @@
+include _wait-for-logo.txt
+
+wait 3
+
+screenshot boot-lock-unlock.png
+
+# Wrong PIN 1111 and Go
+x4 press BUTTON_A
+press BUTTON_C
+press BUTTON_A
+
+screenshot boot-lock-wrong-pin.png
+
+wait 3
+
+# Correct PIN 1234 and Go
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+x4 press BUTTON_C
+press BUTTON_A
+
+wait 1
+
+screenshot boot-lock-unlocked.png
+
+wait 3
+
+screenshot boot-lock-login-after-unlock.png

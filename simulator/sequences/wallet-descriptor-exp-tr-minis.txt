@@ -1,0 +1,32 @@
+include _load-12-word-mnemonic.txt
+
+# Open "连接钱包"
+x2 press BUTTON_B
+press BUTTON_A
+
+# Navigate to Wallet Descriptor
+x3 press BUTTON_B
+press BUTTON_A
+
+#Load from QR code
+x2 press BUTTON_A
+
+qrcode liana-expanding-tr-descriptor.png
+wait 2
+
+screenshot wallet-descriptor-tr-minis-1.png
+
+press BUTTON_A
+wait 0.5
+
+screenshot wallet-descriptor-tr-minis-2.png
+
+press BUTTON_A
+wait 0.5
+
+screenshot wallet-descriptor-tr-minis-3.png
+
+press BUTTON_A
+wait 0.5
+
+screenshot wallet-descriptor-tr-minis-4.png

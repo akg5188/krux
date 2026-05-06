@@ -1,0 +1,14 @@
+include _load-12-word-mnemonic.txt
+
+# Open "扫码签名"
+press BUTTON_A
+
+
+# Sign message, load qr code
+press BUTTON_B
+x2 press BUTTON_A
+
+qrcode message-at-address.png
+wait 0.1
+
+screenshot sign-message-at-address-prompt.png

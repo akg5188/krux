@@ -1,0 +1,15 @@
+include _load-12-word-mnemonic.txt
+
+# Home uses the Raspberry Pi-style four entry layout
+screenshot web3-home.png
+
+# Open "连接钱包"
+x2 press BUTTON_B
+press BUTTON_A
+
+screenshot web3-connect-center.png
+
+# Open the Web3 connect-wallet flow
+press BUTTON_A
+
+screenshot web3-connect-wallets.png

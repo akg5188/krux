@@ -1,0 +1,10 @@
+include _wait-for-logo.txt
+
+screenshot login-options.png
+
+# Navigate to About
+press_amigo_only BUTTON_B
+x5 press BUTTON_B
+press BUTTON_A
+
+screenshot about.png

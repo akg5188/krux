@@ -1,0 +1,24 @@
+include _load-12-word-mnemonic.txt
+
+# Open "扫码签名"
+press BUTTON_A
+
+# Enter the Web3 scan-and-sign flow
+x2 press BUTTON_B
+press BUTTON_A
+
+# Let the scan screen settle before feeding the transaction QR
+wait 0.2
+
+# Feed a TP signTransaction request for typed transaction into the camera
+qrcode web3-typed-transaction-request.png
+wait 0.8
+
+screenshot web3-typed-transaction-preview.png
+
+press BUTTON_A
+wait 0.5
+
+screenshot web3-typed-transaction-result.png
+
+press BUTTON_A

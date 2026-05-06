@@ -1,0 +1,34 @@
+include _load-12-word-mnemonic_b.txt
+
+# Navigate to the compact seed QR, which is a stable starting point on Amigo
+press BUTTON_B
+press BUTTON_A
+press BUTTON_A
+x3 press BUTTON_A
+press BUTTON_A
+press_amigo_only BUTTON_B
+press BUTTON_B
+press BUTTON_A
+
+wait 0.2
+screenshot standard-qr-code.png
+
+press BUTTON_B
+wait 0.1
+screenshot lines-qr-code.png
+
+press BUTTON_B
+wait 0.1
+screenshot zoomed-qr-code.png
+
+press BUTTON_B
+wait 0.1
+screenshot regions-qr-code.png
+
+press BUTTON_B
+wait 0.1
+screenshot grided-qr-code.png
+
+press BUTTON_A
+wait 0.1
+screenshot qr-viewer.png

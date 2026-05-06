@@ -1,0 +1,17 @@
+include _wait-for-logo.txt
+
+screenshot self-check-login-menu-entry.png
+
+# Navigate to firmware self-check from the login menu
+press_amigo_only BUTTON_B
+x4 press BUTTON_B
+press BUTTON_A
+
+screenshot self-check-login-menu.png
+
+# Open status overview
+press BUTTON_A
+
+screenshot self-check-login-status.png
+
+press BUTTON_A

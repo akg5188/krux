@@ -4,6 +4,7 @@
 
 如果你想自己改代码、自己编译，请看另一页：[Amigo 固件从源码编译并烧录](from-source.zh-CN.md)。
 如果你以后要接手维护，先看[Krux 仓库结构与接手说明](repo-structure.zh-CN.md)。
+如果你卡在智能卡、USB 口、打印机或者固件大小这些问题上，先看[Amigo 常见问题](../../faq.zh-CN.md)。
 
 ## 1. 下载固件包
 

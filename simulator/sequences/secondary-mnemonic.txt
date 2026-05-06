@@ -1,0 +1,20 @@
+include _load-12-word-mnemonic_b.txt
+
+# Open the Amigo "助记词工具" menu
+press BUTTON_B
+press BUTTON_A
+
+screenshot secondary-mnemonic-wallet-menu.png
+
+# Open "二次助记词"
+x2 press BUTTON_B
+press BUTTON_A
+
+screenshot secondary-mnemonic-menu.png
+
+# Run default secondary encryption and capture the result page
+press BUTTON_A
+
+screenshot secondary-mnemonic-default-encrypt-result.png
+
+press BUTTON_A

@@ -1,0 +1,61 @@
+include _wait-for-logo.txt
+
+# Open Settings from the login menu
+press BUTTON_B
+press BUTTON_B
+press BUTTON_A
+
+# Open Security
+x5 press BUTTON_B
+press BUTTON_A
+
+screenshot boot-lock-security-menu.png
+
+# Open 开机口令锁
+x4 press BUTTON_B
+press BUTTON_A
+
+screenshot boot-lock-menu-disabled.png
+
+# Show function explanation
+press BUTTON_A
+
+screenshot boot-lock-info.png
+
+wait 3
+
+# Enable lock
+press BUTTON_B
+press BUTTON_A
+
+screenshot boot-lock-warning.png
+
+press BUTTON_A
+
+screenshot boot-lock-new-pin.png
+
+# Enter 1234 and Go
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+x4 press BUTTON_C
+press BUTTON_A
+
+screenshot boot-lock-confirm-pin.png
+
+# Confirm 1234 and Go
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+x4 press BUTTON_C
+press BUTTON_A
+
+screenshot boot-lock-saved.png

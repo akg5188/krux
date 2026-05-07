@@ -1,0 +1,23 @@
+include _wait-for-logo.txt
+
+# Navigate to Tools
+x3 press BUTTON_B
+press BUTTON_A
+
+# Go to Create QR Code
+x2 press BUTTON_B
+press BUTTON_A
+
+screenshot tools-create-QR-confirm.png
+
+# Confirm and open the text keypad
+press BUTTON_A
+wait 0.5
+screenshot tools-create-QR-keypad.png
+
+# Enter a one-character custom payload and open the QR viewer
+press BUTTON_A
+press BUTTON_C
+press BUTTON_A
+wait 0.5
+screenshot tools-create-QR-view.png

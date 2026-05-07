@@ -28,6 +28,7 @@ from ..krux_settings import t, Settings
 from ..encryption import QR_CODE_ITER_MULTIPLE
 from krux import kef
 from ..themes import theme
+from ..kboard import kboard
 from . import (
     Page,
     Menu,
@@ -47,6 +48,13 @@ OVERRIDE_MODE = 3
 OVERRIDE_LABEL = 4
 
 ENCRYPTION_KEY_MAX_LEN = 200
+
+
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
 
 
 def decrypt_kef(ctx, data):
@@ -218,7 +226,10 @@ class KEFEnvelope(Page):
         """implements ui to allow user to select KEF mode-of-operation"""
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            t("Use default Mode?") + " " + self.mode_name, highlight_prefix="?"
+            amigo_text("使用默认加密模式?", t("Use default Mode?"))
+            + " "
+            + self.mode_name,
+            highlight_prefix="?",
         )
         if self.prompt("", BOTTOM_PROMPT_LINE):
             return True
@@ -232,9 +243,13 @@ class KEFEnvelope(Page):
 
     def input_version_ui(self):
         """implements ui to allow user to select KEF version"""
+        default_version = self.version_name or self.mode_name
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            t("Use default Mode?") + " " + self.mode_name, highlight_prefix="?"
+            amigo_text("使用默认加密版本?", t("Use default Version?"))
+            + " "
+            + default_version,
+            highlight_prefix="?",
         )
         if self.prompt("", BOTTOM_PROMPT_LINE):
             return True
@@ -256,8 +271,8 @@ class KEFEnvelope(Page):
     def input_iterations_ui(self):
         """implements ui to allow user to set key-stretch iterations"""
         curr_value = str(self.iterations)
-        dflt_prompt = t("Use default PBKDF2 iter.?")
-        title = t("PBKDF2 iter.") + ": 10K - 510K"
+        dflt_prompt = amigo_text("使用默认轮数?", t("Use default PBKDF2 iter.?"))
+        title = amigo_text("PBKDF2 轮数\n10K-510K", t("PBKDF2 iter.") + ": 10K-510K")
         keypads = [DIGITS]
         iterations = prompt_for_text_update(
             self.ctx, curr_value, dflt_prompt, True, "?", title, keypads
@@ -272,12 +287,12 @@ class KEFEnvelope(Page):
         dflt_label="",
         dflt_prompt="",
         dflt_affirm=True,
-        title=t("Visible Label"),
+        title=amigo_text("标签", t("Visible Label")),
         keypads=None,
     ):
         """implements ui to allow user to set a KEF label"""
         if dflt_label and not dflt_prompt:
-            dflt_prompt = t("Update KEF ID?")
+            dflt_prompt = amigo_text("更新标签?", t("Update KEF ID?"))
             dflt_affirm = False
         self.label = prompt_for_text_update(
             self.ctx, dflt_label, dflt_prompt, dflt_affirm, "?", title, keypads
@@ -287,12 +302,16 @@ class KEFEnvelope(Page):
     def input_iv_ui(self):
         """implements ui to allow user to gather entropy from camera for iv"""
         if self.iv_len > 0:
-            error_txt = t("Failed gathering camera entropy")
+            error_txt = amigo_text("获取相机熵失败", t("Failed gathering camera entropy"))
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                t("Additional entropy from camera required for %s") % self.mode_name
+                amigo_text(
+                    "%s 需要相机熵",
+                    t("Additional entropy from camera required for %s"),
+                )
+                % self.mode_name
             )
-            if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            if not self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
                 self.flash_error(error_txt)
                 self.__iv = None
                 return None
@@ -322,16 +341,22 @@ class KEFEnvelope(Page):
 
         public_info = "\n".join(
             [
-                t("KEF Encrypted") + " (" + str(len(self.ciphertext)) + " B)",
-                self.fit_to_line(displayable_label, t("ID") + ": "),
-                t("Version") + ": " + self.version_name,
-                t("PBKDF2 iter.") + ": " + str(self.iterations),
+                amigo_text("KEF 加密", t("KEF Encrypted"))
+                + " ("
+                + str(len(self.ciphertext))
+                + " B)",
+                self.fit_to_line(displayable_label, amigo_text("标签", t("ID")) + ": "),
+                amigo_text("版本", t("Version")) + ": " + self.version_name,
+                amigo_text("PBKDF2 轮数", t("PBKDF2 iter.")) + ": " + str(self.iterations),
             ]
         )
         self.ctx.display.clear()
         if prompt_decrypt:
             return self.prompt(
-                public_info + "\n\n" + t("Decrypt?"), self.ctx.display.height() // 2
+                public_info
+                + "\n\n"
+                + amigo_text("解密?", t("Decrypt?")),
+                self.ctx.display.height() // 2,
             )
         self.ctx.display.draw_hcentered_text(public_info)
         self.ctx.input.wait_for_button()
@@ -367,7 +392,7 @@ class KEFEnvelope(Page):
             self.version = kef.suggest_versions(plaintext, self.mode_name)[0]
             self.version_name = kef.VERSIONS[self.version]["name"]
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing…"))
+        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
         cipher = kef.Cipher(self.__key, self.label, self.iterations)
         self.ciphertext = cipher.encrypt(plaintext, self.version, self.__iv)
         self.__key = None
@@ -392,10 +417,10 @@ class KEFEnvelope(Page):
             # Capped to keep the UI responsive. Cleared on a successful decrypt
             # or device reset.
             self.ctx.display.clear()
-            self.ctx.display.draw_centered_text(t("Processing…"))
+            self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
             time.sleep_ms(delay_ms)
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing…"))
+        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
         cipher = kef.Cipher(self.__key, self.label, self.iterations)
         plaintext = cipher.decrypt(self.ciphertext, self.version)
         self.__key = None
@@ -477,8 +502,11 @@ class EncryptionKey(Page):
         submenu = Menu(
             self.ctx,
             [
-                (t("Type Key"), self.load_key),
-                (t("Scan Key QR Code"), self.load_qr_encryption_key),
+                (amigo_text("手动输入密钥", t("Type Key")), self.load_key),
+                (
+                    amigo_text("扫描密钥二维码", t("Scan Key QR Code")),
+                    self.load_qr_encryption_key,
+                ),
             ],
             back_label=None,
         )
@@ -495,7 +523,7 @@ class EncryptionKey(Page):
 
             key = decrypted if decrypted else key
         except KeyError:
-            self.flash_error(t("Failed to decrypt"))
+            self.flash_error(amigo_text("解密失败", t("Failed to decrypt")))
             return None
         except ValueError:
             # ValueError=not KEF or declined to decrypt
@@ -510,7 +538,7 @@ class EncryptionKey(Page):
             offset_y = DEFAULT_PADDING
             displayable = key if isinstance(key, str) else "0x" + hexlify(key).decode()
             key_lines = self.ctx.display.draw_hcentered_text(
-                "{} ({}): {}".format(t("Key"), len(key), displayable),
+                "{} ({}): {}".format(amigo_text("密钥", t("Key")), len(key), displayable),
                 offset_y,
                 highlight_prefix=":",
             )
@@ -520,13 +548,13 @@ class EncryptionKey(Page):
                 offset_y += (key_lines + 1) * FONT_HEIGHT
                 color = theme.error_color if strength == t("Weak") else theme.fg_color
                 self.ctx.display.draw_hcentered_text(
-                    "{}: {}".format(t("Strength"), strength),
+                    "{}: {}".format(amigo_text("强度", t("Strength")), strength),
                     offset_y,
                     color,
                     highlight_prefix=":",
                 )
 
-            if self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+            if self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
                 return key
 
             # user did not confirm to proceed
@@ -539,7 +567,7 @@ class EncryptionKey(Page):
         if not isinstance(data, str):
             raise TypeError("load_key() expected str")
         data = self.capture_from_keypad(
-            t("Key"),
+            amigo_text("密钥", t("Key")),
             [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2],
             starting_buffer=data,
         )
@@ -597,16 +625,16 @@ class EncryptMnemonic(Page):
         """Menu with mnemonic encryption output options"""
 
         encrypt_outputs_menu = [
-            (t("Store on Flash"), self.store_mnemonic_on_memory),
+            (amigo_text("保存到闪存", t("Store on Flash")), self.store_mnemonic_on_memory),
             (
-                t("Store on SD Card"),
+                amigo_text("保存到 SD 卡", t("Store on SD Card")),
                 (
                     None
                     if not self.has_sd_card()
                     else lambda: self.store_mnemonic_on_memory(True)
                 ),
             ),
-            (t("Encrypted QR Code"), self.encrypted_qr_code),
+            (amigo_text("加密二维码", t("Encrypted QR Code")), self.encrypted_qr_code),
         ]
         submenu = Menu(self.ctx, encrypt_outputs_menu)
         _, _ = submenu.run_loop()
@@ -624,7 +652,10 @@ class EncryptMnemonic(Page):
         mnemonic_storage = MnemonicStorage()
         if mnemonic_id in mnemonic_storage.list_mnemonics(sd_card):
             self.flash_error(
-                t("ID already exists") + "\n" + t("Encrypted mnemonic was not stored")
+                amigo_text(
+                    "ID 已存在\n加密助记词未存储",
+                    t("ID already exists") + "\n" + t("Encrypted mnemonic was not stored"),
+                )
             )
             del mnemonic_storage
             return
@@ -632,13 +663,19 @@ class EncryptMnemonic(Page):
         if mnemonic_storage.store_encrypted_kef(mnemonic_id, encrypted_data, sd_card):
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                t("Encrypted mnemonic stored with ID:") + " " + mnemonic_id,
+                amigo_text(
+                    "加密助记词已保存\nID:",
+                    t("Encrypted mnemonic stored with ID:"),
+                )
+                + " "
+                + mnemonic_id,
                 highlight_prefix=":",
             )
         else:
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                t("Failed to store mnemonic"), theme.error_color
+                amigo_text("存储助记词失败", t("Failed to store mnemonic")),
+                theme.error_color,
             )
         self.ctx.input.wait_for_button()
         del mnemonic_storage
@@ -680,7 +717,7 @@ class LoadEncryptedMnemonic(Page):
         for mnemonic_id in sorted(mnemonics):
             mnemonic_ids_menu.append(
                 (
-                    mnemonic_id + " (flash)",
+                    mnemonic_id + amigo_text(" (闪存)", " (flash)"),
                     lambda m_id=mnemonic_id: (
                         self._remove_encrypted_mnemonic(m_id)
                         if remove_opt
@@ -691,7 +728,7 @@ class LoadEncryptedMnemonic(Page):
         for mnemonic_id in sorted(sd_mnemonics):
             mnemonic_ids_menu.append(
                 (
-                    mnemonic_id + " (SD" + THIN_SPACE + "card)",
+                    mnemonic_id + amigo_text(" (SD 卡)", " (SD" + THIN_SPACE + "card)"),
                     lambda m_id=mnemonic_id: (
                         self._remove_encrypted_mnemonic(m_id, sd_card=True)
                         if remove_opt
@@ -709,15 +746,15 @@ class LoadEncryptedMnemonic(Page):
         """Uses encryption module to load and decrypt a mnemonic"""
         from ..encryption import MnemonicStorage
 
-        error_txt = t("Failed to decrypt")
+        error_txt = amigo_text("解密失败", t("Failed to decrypt"))
 
         key_capture = EncryptionKey(self.ctx)
         key = key_capture.encryption_key()
         if key in (None, "", ESC_KEY):
-            self.flash_error(t("Key was not provided"))
+            self.flash_error(amigo_text("未提供密钥", t("Key was not provided")))
             return MENU_CONTINUE
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing…"))
+        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
         # Share the in session failure counter with KEFEnvelope.unseal_ui so
         # an attacker can not split attempts across the two decrypt paths.
         delay_ms = KEFEnvelope.backoff_delay_ms()
@@ -745,7 +782,10 @@ class LoadEncryptedMnemonic(Page):
 
         mnemonic_storage = MnemonicStorage()
         self.ctx.display.clear()
-        if self.prompt(t("Remove %s?") % mnemonic_id, self.ctx.display.height() // 2):
+        if self.prompt(
+            amigo_text("删除 %s?", t("Remove %s?")) % mnemonic_id,
+            self.ctx.display.height() // 2,
+        ):
             mnemonic_storage.del_mnemonic(mnemonic_id, sd_card)
             message = t("%s removed.") % mnemonic_id
             message += "\n\n"

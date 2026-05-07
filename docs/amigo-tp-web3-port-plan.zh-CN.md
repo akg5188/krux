@@ -43,11 +43,22 @@
 
 ## 当前进度
 
+- 2026-05-07 更新：再次完整跑通 `bash simulator/generate-device-screenshots.sh maixpy_amigo zh-CN`，总截图数维持在 `176` 张；抽查 `web3-home`、`home-options`、`backup-stackbit`、`wallet-descriptor-tr-minis-1`、`settings-options-appearance`、`print-qr-prompt`、`tools-create-QR` 等关键图，未见新的英文残留或 3.5 寸触摸排版回退。
 - 2026-05-06 更新：新增 `Amigo 商用交付说明` 中文页，把支持范围、禁用范围、验证记录和接手顺序集中到一页，方便以后发货、售后和交接。
 - 2026-05-06 更新：新增 `Amigo 常见问题` 中文页，并把它挂到 README、中文新手入口和安装教程里，补齐商业化交付最常被问到的支持入口。
-- 2026-05-06 更新：继续做 Amigo 深层页面中文润色和 3.5 寸触摸排版细化，统一修正了 `添加或修改钱包密码短语？`、`继续？`、`派生 BIP85 熵？`、`完成？` 等半角标点；`BIP85` 相关文案统一为 `BIP85 子助记词` 和 `BIP85 密码`，登录菜单里的 `固件自检` 入口也保持为双行大按钮。最新针对性回归 `101 passed`。
+  - 2026-05-07 更新：继续做 Amigo 深层页面中文润色和 3.5 寸触摸排版细化，重点收口 `KEF`、密码短语和消息签名的高频提示，把 `使用默认加密模式`、`更新标签`、`密码短语含非 ASCII 字符`、`消息 / 地址 / 签名 / 公钥` 等页面再压短一轮；最新针对性回归 `111 passed`。
+- 2026-05-07 更新：恢复 `工具 -> 创建二维码` 入口，补齐中文提示、Amigo 触摸屏截图序列和单测，保证自定义文本二维码能从菜单进入、生成并导出。
+- 2026-05-07 更新：继续收口 `MnemonicLoader`、`Mnemonic XOR`、`BIP85`、`助记词备份` 和 `消息签名` 的中文确认词与错误提示，避免 Amigo 深层页面再冒英文。
+- 2026-05-07 更新：继续收口 `钱包描述符`、`地址列表` 和 `二维码查看器` 的 Amigo 中文菜单与触摸排版；新增 `Amigo 直接烧录 maixpy.bin` 维护者教程，方便以后只更新底层镜像的人直接接手。
+- 2026-05-07 更新：重新跑了 `tests/pages/test_qr_view.py`、`tests/pages/home_pages/test_addresses.py`、`tests/pages/home_pages/test_wallet_descriptor.py`、`tests/pages/home_pages/test_mnemonic_backup.py`，结果 `58 passed`；完整 Amigo 中文截图回归再次通过，截图总数仍为 `176` 张。
+- 2026-05-07 更新：钱包描述符 / 文件操作回归重新跑通，`tests/pages/home_pages/test_wallet_descriptor.py` 和 `tests/pages/test_file_operations.py` 结果 `22 passed`；确认保存页和导出页在最新中文文案下仍可用。
+- 2026-05-07 更新：完整 Amigo 截图回归重新跑通，新增 3 张 `创建二维码` 截图后总数到 `176` 张；`tests/pages/test_tools.py` 结果 `7 passed`，`git diff --check` 通过。
+- 2026-05-07 更新：最新组合回归重新跑通 `tests/pages/test_encryption_ui.py`、`tests/pages/test_wallet_settings.py`、`tests/pages/home_pages/test_bip85.py`、`tests/pages/home_pages/test_wallet_descriptor.py`、`tests/pages/test_file_operations.py`，结果 `83 passed`。
+- 2026-05-07 更新：Amigo 固件最终编译链路已修正并成功生成产物，`make -C firmware/MaixPy/projects/maixpy_amigo/build -j2` 通过；输出文件为 `firmware/MaixPy/projects/maixpy_amigo/build/maixpy.bin`、`firmware/MaixPy/projects/maixpy_amigo/build/firmware.bin` 和 `firmware/MaixPy/projects/maixpy_amigo/build/maixpy.elf`。
+- 2026-05-07 更新：`maixpy.bin` 的 SHA256 为 `04a59041f4d20dd9a6ac79d82807325c1d5db38d8ef1e787af820555722ead4b`，可作为后续刷机和交付校验基线。
+- 2026-05-07 更新：`tests/pages/home_pages/test_web3_ui.py -q` 重新跑通，结果 `10 passed`，确认 Web3 顶层菜单、连接钱包子菜单和消息 / 交易签名结果标题仍正常。
 - 总结论：**除智能卡外，树莓派固件里的核心功能路线已经迁移或由 Krux 原生能力覆盖到 Amigo 第一版**。Web3/TP/EVM、固件自检、首页大屏触摸排版、BTC/PSBT/xpub、助记词创建/导入/备份、`扑克牌创建`、`16进制创建`、`查看原始熵`、`钢板打孔数字`、`二次助记词`、`钢板二次还原`、`15/18/21词创建/导入` 和 `开机数字口令锁` 已完成；后续剩余工作主要是深层页面继续中文化、3.5 寸触摸屏排版细化、Tinyseed/Stackbit 等专用金属格式对 15/18/21 词的兼容性评估。
-- 继续确认：TinySeed 已经统一到 `0-2047 / 11 位` 编号体系，显示、手动输入、打印和扫描还原都要跟着同一套编号走，不能再沿用旧的 `1-2048 / 12 位` 假设。
+- 继续确认：TinySeed 已经统一到 `0-2047 / 11 位` 编号体系，位权从左到右显示为 `1 / 2 / 4 / ... / 1024`，显示、手动输入、打印和扫描还原都要跟着同一套编号走，不能再沿用旧的 `1-2048 / 12 位` 假设。
 - 已完成：已加载助记词后的 Amigo 首页按树莓派首页逻辑重排为 `扫码签名 / 助记词工具 / 连接钱包 / 固件自检`；因为智能卡方向已取消，`连接钱包` 占用原树莓派 `智能卡工具` 的分类位置。
 - 已完成：Web3 入口、连接钱包、消息签名、结构化数据签名、交易签名、结构化交易签名
 - 已完成：`OKX / Bitget / MetaMask / Rabby / TokenPocket` 连接二维码
@@ -157,6 +168,7 @@
   - Amigo 触摸屏 UI
   - 模拟器截图
   - 固件构建与验证
+- 当前固件交付物已经可以直接从 `firmware/MaixPy/projects/maixpy_amigo/build/` 取走，先看 `maixpy.bin` 再看 `maixpy.elf`
 - 除非用户重新点名，否则不要继续扩展 `app/` 或 `wallet/`
 - 最近一次 Web3/QR/自检/i18n 回归：`PYTHONPATH=src:vendor/embit/src:vendor/foundation-ur-py/src:vendor/urtypes/src .venv/bin/pytest tests/test_web3.py tests/pages/home_pages/test_web3_ui.py tests/pages/test_qr_capture.py tests/pages/test_self_check.py tests/test_i18n.py -q`
 - 最近一次结果：`57 passed`

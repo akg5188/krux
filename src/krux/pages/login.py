@@ -128,6 +128,13 @@ CARD_EVENT_BITS = {
 }
 
 
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
+
+
 class Login(MnemonicLoader):
     """Represents the login page of the app"""
 
@@ -166,9 +173,9 @@ class Login(MnemonicLoader):
     def new_key(self):
         """Handler for the 'new mnemonic' menu item"""
         if kboard.is_amigo:
-            via_camera = "摄像头取熵\n拍照生成助记词"
-            via_cards = "扑克牌取熵\n按洗牌顺序输入"
-            via_hex = "十六进制取熵\n手动输入随机数"
+            via_camera = "摄像头熵\n拍照生成助记词"
+            via_cards = "扑克牌熵\n按洗牌顺序输入"
+            via_hex = "十六进制熵\n手动输入随机数"
             via_words = "手动输入助记词\n逐词输入"
             via_d6 = "D6 骰子\n六面骰"
             via_d20 = "D20 骰子\n二十面骰"
@@ -322,7 +329,7 @@ class Login(MnemonicLoader):
             max_lines=max_lines,
             highlight_prefix=":",
         )
-        return self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE)
+        return self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE)
 
     def new_key_from_card_entropy(self):
         """Create a new mnemonic from playing-card entropy."""
@@ -339,7 +346,7 @@ class Login(MnemonicLoader):
             "24 词需要多副牌或补充输入"
         )
         self.ctx.display.draw_hcentered_text(intro)
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
 
         cards = []
@@ -389,7 +396,7 @@ class Login(MnemonicLoader):
             "先对十六进制文本做 SHA256\n再生成 BIP39 助记词"
         ) % (len_mnemonic, required_chars)
         self.ctx.display.draw_hcentered_text(intro)
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
 
         hex_chars = []
@@ -443,7 +450,7 @@ class Login(MnemonicLoader):
             max_lines=max_lines,
             highlight_prefix=":",
         )
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
 
         words = self._mnemonic_from_iancoleman_hex(hex_entropy, len_mnemonic)
@@ -451,17 +458,20 @@ class Login(MnemonicLoader):
 
     def new_key_from_snapshot(self):
         """Use camera's entropy to create a new mnemonic"""
-        extra_option = t("Double mnemonic")
+        extra_option = amigo_text("双份助记词", t("Double mnemonic"))
         len_mnemonic = self.choose_len_mnemonic(extra_option, extended=True)
         if not len_mnemonic:
             return MENU_CONTINUE
 
         self.ctx.display.draw_hcentered_text(
-            t("Use camera's entropy to create a new mnemonic")
-            + ". "
-            + t("(Experimental)")
+            amigo_text(
+                "使用摄像头熵生成助记词。\n(实验性)",
+                t("Use camera's entropy to create a new mnemonic")
+                + " "
+                + t("(Experimental)"),
+            )
         )
-        if self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             from .capture_entropy import CameraEntropy
 
             camera_entropy = CameraEntropy(self.ctx)
@@ -474,7 +484,8 @@ class Login(MnemonicLoader):
                 entropy_hash = binascii.hexlify(entropy_bytes).decode()
                 self.ctx.display.clear()
                 self.ctx.display.draw_centered_text(
-                    t("SHA256 of snapshot:") + "\n\n%s" % entropy_hash,
+                    amigo_text("拍摄结果 SHA256:", t("SHA256 of snapshot:"))
+                    + "\n\n%s" % entropy_hash,
                     highlight_prefix=":",
                 )
                 self.ctx.input.wait_for_button()
@@ -525,7 +536,7 @@ class Login(MnemonicLoader):
                         entropy_bytes = entropy_int.to_bytes(32, "big")
                         tries += 1
                         if tries > DOUBLE_MNEMONICS_MAX_TRIES:
-                            raise ValueError("Failed to find a valid double mnemonic")
+                            raise ValueError("未找到可用的双份助记词")
                     # print("Tries: {} / {} ms".format(tries, time.ticks_ms() - pre_t))  # Debug
 
                 num_bytes = (
@@ -616,18 +627,18 @@ class Login(MnemonicLoader):
                 network_name, policy_type, script_type, derivation_path, True
             )
             wallet_info += "\n" + (
-                t("No Passphrase")
+                amigo_text("无密码短语", t("No Passphrase"))
                 if not passphrase
-                else t("Passphrase") + " (%d): *…*" % len(passphrase)
+                else amigo_text("密码短语", t("Passphrase")) + " (%d): *…*" % len(passphrase)
             )
 
             self.ctx.display.clear()
             submenu = Menu(
                 self.ctx,
                 [
-                    (t("Load Wallet"), lambda: None),
-                    (t("Passphrase"), lambda: None),
-                    (t("Customize"), lambda: None),
+                    (amigo_text("加载钱包", t("Load Wallet")), lambda: None),
+                    (amigo_text("密码短语", t("Passphrase")), lambda: None),
+                    (amigo_text("自定义", t("Customize")), lambda: None),
                 ],
                 offset=(
                     self.ctx.display.draw_hcentered_text(wallet_info, info_box=True)
@@ -653,7 +664,10 @@ class Login(MnemonicLoader):
 
             index, _ = submenu.run_loop()
             if index == submenu.back_index:
-                if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+                if self.prompt(
+                    amigo_text("确认返回?", t("Are you sure?")),
+                    self.ctx.display.height() // 2,
+                ):
                     del key
                     return MENU_CONTINUE
             if index == 0:
@@ -674,7 +688,7 @@ class Login(MnemonicLoader):
                 )
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Loading…"))
+        self.ctx.display.draw_centered_text(amigo_text("正在加载…", t("Loading…")))
 
         self.ctx.wallet = Wallet(key)
         return MENU_EXIT

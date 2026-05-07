@@ -39,6 +39,13 @@ from ..key import Key
 from ..krux_settings import t
 from ..kboard import kboard
 
+
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
+
 DIGITS_HEX = "0123456789ABCDEF"
 DIGITS_OCT = "01234567"
 
@@ -77,7 +84,7 @@ class MnemonicLoader(Page):
     def load_key_from_camera(self):
         """Handler for the 'load mnemonic'>'via camera' menu item"""
         if kboard.is_amigo:
-            qr_label = "二维码导入\n助记词二维码 / 普通文本"
+            qr_label = "二维码导入\n助记词二维码 / 文本"
             tinyseed_label = "点阵备份\n相机扫描"
             onekey_label = "金属卡备份\nOneKey KeyTag"
             binary_label = "二进制网格\n位图导入"
@@ -114,7 +121,7 @@ class MnemonicLoader(Page):
         if kboard.is_amigo:
             words_label = "助记词输入\n逐词输入"
             numbers_label = "助记词编号\n0-2047"
-            steel_label = "钢板还原\n默认 / 自定义"
+            steel_label = "钢板二次还原\n默认 / 自定义"
             tinyseed_label = "点阵备份\n手动输入"
             stackbit_label = "1248 打孔板\n手动输入"
         else:
@@ -153,8 +160,14 @@ class MnemonicLoader(Page):
         submenu = Menu(
             self.ctx,
             [
-                ("默认还原\n-8/-7/-6...", self.load_key_from_secondary_steel_default),
-                ("自定义还原\n12 组 +8/-8", self.load_key_from_secondary_steel_custom),
+                (
+                    amigo_text("默认还原\n-8 -7 -6…", "Default Restore"),
+                    self.load_key_from_secondary_steel_default,
+                ),
+                (
+                    amigo_text("自定义还原\n12 组运算", "Custom Restore"),
+                    self.load_key_from_secondary_steel_custom,
+                ),
             ],
         )
         index, status = submenu.run_loop()
@@ -175,9 +188,9 @@ class MnemonicLoader(Page):
         from .home_pages.secondary_mnemonic import SecondaryMnemonic
 
         captured = self.capture_from_keypad(
-            "输入钢板序号",
+            amigo_text("输入钢板序号", "Enter steel indices"),
             [DIGITS + " ,"],
-            buffer_title="12组\n逗号分隔",
+            buffer_title="12 组\n逗号分隔",
         )
         if captured == ESC_KEY:
             return MENU_CONTINUE
@@ -186,12 +199,12 @@ class MnemonicLoader(Page):
             restore_entries = SecondaryMnemonic._default_entries(True)
             if custom:
                 captured_entries = self.capture_from_keypad(
-                    "输入还原参数",
+                    amigo_text("输入还原参数", "Enter restore params"),
                     [DIGITS + " +-*/"],
                     starting_buffer=SecondaryMnemonic.format_shift_entries(
                         restore_entries
                     ),
-                    buffer_title="12组\n空格分隔",
+                    buffer_title="12 组\n空格分隔",
                 )
                 if captured_entries == ESC_KEY:
                     return MENU_CONTINUE
@@ -220,10 +233,16 @@ class MnemonicLoader(Page):
             len_mnemonic = self.choose_len_mnemonic(extended=True)
             if not len_mnemonic:
                 return MENU_CONTINUE
-            title = t("Enter %d BIP39 words.") % len_mnemonic
+            title = amigo_text(
+                "请输入 %d 个 BIP39 词" % len_mnemonic,
+                t("Enter %d BIP39 words.") % len_mnemonic,
+            )
         else:
             len_mnemonic = None
-            title = t("Enter each word of your BIP39 mnemonic.")
+            title = amigo_text(
+                "逐词输入助记词",
+                t("Enter each word of your BIP39 mnemonic."),
+            )
 
         mnemonic_editor = MnemonicEditor(self.ctx)
         mnemonic_editor.compute_search_ranges()
@@ -263,8 +282,9 @@ class MnemonicLoader(Page):
 
     def load_key_from_octal(self):
         """Handler for the 'load mnemonic'>'via numbers'>'octal' submenu item"""
-        title = t(
-            "Enter each word of your BIP39 mnemonic as a number in octal from 0 to 3777."
+        title = amigo_text(
+            "输入每个助记词编号(八进制)",
+            t("Enter each word of your BIP39 mnemonic as a number in octal from 0 to 3777."),
         )
 
         def autocomplete(prefix):
@@ -297,8 +317,9 @@ class MnemonicLoader(Page):
 
     def load_key_from_hexadecimal(self):
         """Handler for the 'load mnemonic'>'via numbers'>'hexadecimal' submenu item"""
-        title = t(
-            "Enter each word of your BIP39 mnemonic as a number in hexadecimal from 0 to 7FF."
+        title = amigo_text(
+            "输入每个助记词编号(十六进制)",
+            t("Enter each word of your BIP39 mnemonic as a number in hexadecimal from 0 to 7FF."),
         )
 
         def autocomplete(prefix):
@@ -331,7 +352,10 @@ class MnemonicLoader(Page):
 
     def load_key_from_digits(self):
         """Handler for the 'load mnemonic'>'via numbers'>'decimal' submenu item"""
-        title = t("Enter each word of your BIP39 mnemonic as a number from 0 to 2047.")
+        title = amigo_text(
+            "输入每个助记词编号 0-2047",
+            t("Enter each word of your BIP39 mnemonic as a number from 0 to 2047."),
+        )
 
         def autocomplete(prefix):
             if len(prefix) == 4 or (len(prefix) == 3 and int(prefix) > 204):
@@ -394,18 +418,27 @@ class MnemonicLoader(Page):
         if not len_mnemonic:
             return MENU_CONTINUE
 
-        intro = t("Paint punched dots black so they can be detected.") + " "
-        intro += t("Use a black background surface.") + " "
-        intro += t("Align camera and backup plate properly.")
+        intro = amigo_text(
+            "把打孔点涂黑，方便摄像头识别。",
+            t("Paint punched dots black so they can be detected."),
+        )
+        intro += " " + amigo_text(
+            "请使用黑色背景。",
+            t("Use a black background surface."),
+        )
+        intro += " " + amigo_text(
+            "请把摄像头和备份板对齐。",
+            t("Align camera and backup plate properly."),
+        )
         self.ctx.display.draw_hcentered_text(intro)
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
 
         tiny_scanner = TinyScanner(self.ctx, grid_type)
         words = tiny_scanner.scanner(len_mnemonic == 24)
         del tiny_scanner
         if words is None:
-            self.flash_error(t("Failed to load"))
+            self.flash_error(amigo_text("加载失败", t("Failed to load")))
             return MENU_CONTINUE
         return self._load_key_from_words(words)
 
@@ -417,13 +450,13 @@ class MnemonicLoader(Page):
         qr_capture = QRCodeCapture(self.ctx)
         data, qr_format = qr_capture.qr_capture_loop()
         if data is None:
-            self.flash_error(t("Failed to load"))
+            self.flash_error(amigo_text("加载失败", t("Failed to load")))
             return MENU_CONTINUE
 
         try:
             data = decrypt_kef(self.ctx, data)
         except KeyError:
-            self.flash_error(t("Failed to decrypt"))
+            self.flash_error(amigo_text("解密失败", t("Failed to decrypt")))
             return MENU_CONTINUE
         except ValueError:
             # ValueError=not KEF or declined to decrypt
@@ -472,7 +505,9 @@ class MnemonicLoader(Page):
                     ]
 
         if not words or len(words) not in (12, 15, 18, 21, 24):
-            self.flash_error(t("Invalid mnemonic length"))
+            self.flash_error(
+                amigo_text("助记词长度无效", t("Invalid mnemonic length"))
+            )
             return MENU_CONTINUE
         return self._load_key_from_words(words)
 
@@ -488,14 +523,15 @@ class MnemonicLoader(Page):
     ):
         words = []
         self.ctx.display.draw_hcentered_text(title)
-        if self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             while len(words) < 24:
                 if new:
                     if len(words) == len_mnemonic - 1:
                         self.ctx.display.clear()
                         self.ctx.display.draw_centered_text(
-                            t(
-                                "Leave blank if you'd like Krux to pick a valid final word"
+                            amigo_text(
+                                "留空即可由 Krux 自动选择最后一个词。",
+                                t("Leave blank if you'd like Krux to pick a valid final word"),
                             )
                         )
                         self.ctx.input.wait_for_button()
@@ -504,7 +540,10 @@ class MnemonicLoader(Page):
                 else:
                     if len(words) == 12:
                         self.ctx.display.clear()
-                        if self.prompt(t("Done?"), self.ctx.display.height() // 2):
+                        if self.prompt(
+                            amigo_text("完成?", t("Done?")),
+                            self.ctx.display.height() // 2,
+                        ):
                             break
 
                 word = ""
@@ -516,14 +555,20 @@ class MnemonicLoader(Page):
                     if new and len(words) == len_mnemonic - 1:
                         finalwords = Key.get_final_word_candidates(words)
                         word = self.capture_from_keypad(
-                            t("Word %d") % (len(words) + 1),
+                            amigo_text(
+                                "单词 %d" % (len(words) + 1),
+                                t("Word %d") % (len(words) + 1),
+                            ),
                             [charset],
                             lambda x: autocomplete_fn(x, finalwords),
                             lambda x: possible_keys_fn(x, finalwords),
                         )
                     else:
                         word = self.capture_from_keypad(
-                            t("Word %d") % (len(words) + 1),
+                            amigo_text(
+                                "单词 %d" % (len(words) + 1),
+                                t("Word %d") % (len(words) + 1),
+                            ),
                             [charset],
                             autocomplete_fn,
                             possible_keys_fn,
@@ -586,7 +631,7 @@ class MnemonicLoader(Page):
             display_mnemonic=numbers_str,
             fingerprint=Key.extract_fingerprint(mnemonic),
         )
-        if not self.prompt(t("Proceed?"), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
         self.ctx.display.clear()
 

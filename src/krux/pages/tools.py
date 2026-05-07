@@ -25,32 +25,53 @@ from . import (
     Menu,
     MENU_CONTINUE,
     MENU_EXIT,
-    # ESC_KEY,
-    # LETTERS,
-    # UPPERCASE_LETTERS,
-    # NUM_SPECIAL_1,
-    # NUM_SPECIAL_2,
+    ESC_KEY,
+    LETTERS,
+    UPPERCASE_LETTERS,
+    NUM_SPECIAL_1,
+    NUM_SPECIAL_2,
 )
 from ..krux_settings import t
+from ..kboard import kboard
 
-# TODO: re-enable "Create a QR Code" (and keypads ^^^) once encryption is possible w/o Datum Tool
+
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
 
 
 class Tools(Page):
     """Krux generic tools"""
 
     def __init__(self, ctx):
+        if kboard.is_amigo:
+            datum_label = "数据工具\nPSBT / xpub / 地址"
+            test_label = "设备自检\n触摸 / SD / 打印"
+            qr_label = "生成二维码\n从文本创建"
+            descriptor_label = "地址工具\n描述符 / 地址"
+            flash_label = "闪存工具\n清理 / 维护"
+            remove_label = "删除助记词\n管理已保存项"
+        else:
+            datum_label = t("Datum Tool")
+            test_label = t("Device Tests")
+            qr_label = t("Create QR Code")
+            descriptor_label = t("Descriptor Addresses")
+            flash_label = t("Flash Tools")
+            remove_label = t("Remove Mnemonic")
+
         super().__init__(
             ctx,
             Menu(
                 ctx,
                 [
-                    (t("Datum Tool"), self.datum_tool),
-                    (t("Device Tests"), self.device_tests),
-                    # (t("Create QR Code"), self.create_qr),
-                    (t("Descriptor Addresses"), self.descriptor_addresses),
-                    (t("Flash Tools"), self.flash_tools),
-                    (t("Remove Mnemonic"), self.rm_stored_mnemonic),
+                    (datum_label, self.datum_tool),
+                    (test_label, self.device_tests),
+                    (qr_label, self.create_qr),
+                    (descriptor_label, self.descriptor_addresses),
+                    (flash_label, self.flash_tools),
+                    (remove_label, self.rm_stored_mnemonic),
                 ],
             ),
         )
@@ -89,24 +110,25 @@ class Tools(Page):
         del sys.modules["krux.pages"].datum_tool
         return MENU_CONTINUE
 
-    # def create_qr(self):
-    #    """Handler for the 'Create QR Code' menu item"""
-    #    if self.prompt(
-    #        t("Create QR code from text?"),
-    #        self.ctx.display.height() // 2,
-    #    ):
-    #        text = self.capture_from_keypad(
-    #            t("Text"), [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2]
-    #        )
-    #        if text in ("", ESC_KEY):
-    #            return MENU_CONTINUE
-    #
-    #        from .qr_view import SeedQRView
-    #
-    #        title = t("Custom QR Code")
-    #        seed_qr_view = SeedQRView(self.ctx, data=text, title=title)
-    #        return seed_qr_view.display_qr(allow_export=True)
-    #    return MENU_CONTINUE
+    def create_qr(self):
+        """Handler for the 'Create QR Code' menu item"""
+        if self.prompt(
+            amigo_text("从文本生成二维码?", t("Create QR code from text?")),
+            self.ctx.display.height() // 2,
+        ):
+            text = self.capture_from_keypad(
+                amigo_text("输入文本", t("Text")),
+                [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2],
+            )
+            if text in ("", ESC_KEY):
+                return MENU_CONTINUE
+
+            from .qr_view import SeedQRView
+
+            title = amigo_text("自定义二维码", t("Custom QR Code"))
+            seed_qr_view = SeedQRView(self.ctx, data=text, title=title)
+            return seed_qr_view.display_qr(allow_export=True)
+        return MENU_CONTINUE
 
     def descriptor_addresses(self):
         """Handler for the 'Descriptor Addresses' menu item"""

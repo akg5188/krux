@@ -135,7 +135,7 @@ class SignMessage(Utils):
             taproot_script = script.p2tr(pubkey)
             addr = taproot_script.address(network=network)
         else:
-            raise ValueError("Unsupported script type: %s" % script_type)
+            raise ValueError("不支持的脚本类型: %s" % script_type)
 
         return addr
 
@@ -147,7 +147,7 @@ class SignMessage(Utils):
             message, self.fit_to_line(address, str(derivation[4]) + ". ", fixed_chars=3)
         )
 
-        if not self.prompt(amigo_text("签名？", t("Sign?")), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("签名?", t("Sign?")), BOTTOM_PROMPT_LINE):
             return None
 
         message_hash = hashlib.sha256(
@@ -170,7 +170,7 @@ class SignMessage(Utils):
 
         offset_y += (
             self.ctx.display.draw_hcentered_text(
-                amigo_text("消息:", t("Message:")), offset_y, theme.highlight_color
+                amigo_text("消息", t("Message:")), offset_y, theme.highlight_color
             )
             * FONT_HEIGHT
         )
@@ -182,7 +182,7 @@ class SignMessage(Utils):
         ) * FONT_HEIGHT
         offset_y += (
             self.ctx.display.draw_hcentered_text(
-                amigo_text("地址:", t("Address") + ":"),
+                amigo_text("地址", t("Address") + ":"),
                 offset_y,
                 theme.highlight_color,
             )
@@ -194,7 +194,7 @@ class SignMessage(Utils):
         """Helper to display the signature"""
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            amigo_text("签名:", t("Signature:")) + "\n\n%s" % encoded_sig,
+            amigo_text("签名", t("Signature:")) + "\n\n%s" % encoded_sig,
             highlight_prefix=":",
         )
         self.ctx.input.wait_for_button()
@@ -260,7 +260,7 @@ class SignMessage(Utils):
                 highlight_prefix=":",
             )
             if not self.prompt(
-                amigo_text("继续？", t("Proceed?")), BOTTOM_PROMPT_LINE
+                amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE
             ):
                 return ""
 
@@ -269,7 +269,7 @@ class SignMessage(Utils):
             "SHA256:\n\n%s" % binascii.hexlify(message_hash).decode(),
             highlight_prefix=":",
         )
-        if not self.prompt(amigo_text("签名？", t("Sign?")), BOTTOM_PROMPT_LINE):
+        if not self.prompt(amigo_text("签名?", t("Sign?")), BOTTOM_PROMPT_LINE):
             return ""
 
         sig = self.ctx.wallet.key.sign(message_hash).serialize()
@@ -336,7 +336,7 @@ class SignMessage(Utils):
 
     def _display_and_export_pubkey(self, pubkey, qr_format):
         """Displays and exports the public key as QR code"""
-        title = amigo_text("公钥:", t("Hex Public Key:"))
+        title = amigo_text("公钥", t("Hex Public Key:"))
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
             title + "\n\n%s" % pubkey,
@@ -367,14 +367,14 @@ class SignMessage(Utils):
             file_content,
             "message",
             message_filename,
-            amigo_text("签名:", t("Signature:")),
+            amigo_text("签名", t("Signature:")),
             extension,
             SIGNED_FILE_SUFFIX,
             prompt=False,
         )
 
         if not address:
-            title = amigo_text("公钥:", t("Hex Public Key:"))
+            title = amigo_text("公钥", t("Hex Public Key:"))
             save_page.save_file(
                 pubkey,
                 "pubkey",
@@ -390,7 +390,7 @@ class SignMessage(Utils):
         data, qr_format, message_filename = self._load_message()
 
         if data is None:
-            self.flash_error(t("Failed to load"))
+            self.flash_error(amigo_text("加载失败", t("Failed to load")))
             return MENU_CONTINUE
 
         if message_filename:

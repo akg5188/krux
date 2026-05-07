@@ -411,7 +411,10 @@ class TinySeed(Page):
                     page += 1
                 elif index >= TS_ESC_START_POSITION:  # "Esc"
                     self.ctx.display.clear()
-                    if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+                    if self.prompt(
+                        amigo_text("确定要退出吗?", t("Are you sure?")),
+                        self.ctx.display.height() // 2,
+                    ):
                         break
                     self._map_keys_array()
                 elif _editable_bit():
@@ -755,7 +758,7 @@ class TinyScanner(Page):
             if page_seed_numbers == self.previous_seed_numbers:
                 self._exit_camera()
                 self.ctx.display.draw_centered_text(
-                    t("Review scanned data, edit if necessary")
+                    amigo_text("检查扫描结果，必要时可修改", t("Review scanned data, edit if necessary"))
                 )
                 self.ctx.input.wait_for_button()
                 self.ctx.display.clear()
@@ -765,7 +768,9 @@ class TinyScanner(Page):
                 if words:
                     return words
                 self.flash_text(
-                    t("Scanning words 1-12 again") + "\n\n" + t("Wait for the capture")
+                    amigo_text("重新扫描第 1-12 个词", t("Scanning words 1-12 again"))
+                    + "\n\n"
+                    + amigo_text("请等待采集", t("Wait for the capture"))
                 )
                 self._run_camera()
                 self.previous_seed_numbers = [-1] * TS_WORDS_PER_PAGE
@@ -778,7 +783,7 @@ class TinyScanner(Page):
             self.ctx.input.reset_ios_state()
             self._exit_camera()
             self.ctx.display.draw_centered_text(
-                t("Review scanned data, edit if necessary")
+                amigo_text("检查扫描结果，必要时可修改", t("Review scanned data, edit if necessary"))
             )
             self.ctx.input.wait_for_button()
             self.ctx.display.clear()
@@ -788,13 +793,17 @@ class TinyScanner(Page):
             self.capturing = False
             if words is not None:
                 self.flash_text(
-                    t("Scanning words 13-24") + "\n\n" + t("Wait for the capture")
+                    amigo_text("扫描第 13-24 个词", t("Scanning words 13-24"))
+                    + "\n\n"
+                    + amigo_text("请等待采集", t("Wait for the capture"))
                 )
                 self._run_camera()
                 return words
             # Esc command was given
             self.flash_text(
-                t("Scanning words 1-12 again") + "\n\n" + t("TOUCH or ENTER to capture")
+                amigo_text("重新扫描第 1-12 个词", t("Scanning words 1-12 again"))
+                + "\n\n"
+                + amigo_text("轻触或按确认键采集", t("TOUCH or ENTER to capture"))
             )
             self._run_camera()
         else:
@@ -810,9 +819,9 @@ class TinyScanner(Page):
 
         self.ctx.display.clear()
         message = (
-            t("TOUCH or ENTER to capture")
+            amigo_text("轻触或按确认键采集", t("TOUCH or ENTER to capture"))
             if (w24 and page == 0)
-            else t("Wait for the capture")
+            else amigo_text("请等待采集", t("Wait for the capture"))
         )
         self.ctx.display.draw_centered_text(message)
         precamera_ticks = time.ticks_ms()

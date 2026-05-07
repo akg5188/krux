@@ -344,9 +344,7 @@ def test_no_change_passphrase_menu(mocker, amigo, tdata):
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
     assert wallet.key.fingerprint == ctx.wallet.key.fingerprint
     assert ctx.wallet.key.fingerprint_hex_str() == FINGERPRINT_NO_PASSPHRASE
-    home.prompt.assert_called_once_with(
-        t("Add or change wallet passphrase?"), ctx.display.height() // 2
-    )
+    home.prompt.assert_called_once_with("添加或修改密码短语?", ctx.display.height() // 2)
 
 
 def test_cancel_passphrase_menu(mocker, amigo, tdata):
@@ -376,9 +374,7 @@ def test_cancel_passphrase_menu(mocker, amigo, tdata):
     home.passphrase()
 
     assert ctx.wallet.key.fingerprint_hex_str() == FINGERPRINT_NO_PASSPHRASE
-    home.prompt.assert_called_once_with(
-        t("Add or change wallet passphrase?"), ctx.display.height() // 2
-    )
+    home.prompt.assert_called_once_with("添加或修改密码短语?", ctx.display.height() // 2)
     PassphraseEditor.load_passphrase_menu.assert_called_once_with(
         mocker.ANY, ctx.wallet.key.mnemonic
     )

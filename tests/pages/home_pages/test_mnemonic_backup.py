@@ -730,7 +730,7 @@ def test_display_raw_entropy(mocker, amigo):
     mnemonics.display_mnemonic.assert_called_once_with(
         expected_entropy,
         title="原始熵",
-        suffix="BIP39 熵 128 位",
+        suffix="BIP39 熵: 128 位",
     )
     assert ctx.input.wait_for_button.call_count == 1
 
@@ -764,8 +764,8 @@ def test_display_steel_punch_numbers(mocker, amigo):
 
     pages = MnemonicsView._format_steel_punch_pages(mnemonic)
     assert len(pages) == 2
-    assert pages[0][:2] == ["01 abandon #0000", "打孔：无需打孔"]
-    assert pages[1][-3:] == ["12 about #0003", "前6位：1 2", "后5位：无"]
+    assert pages[0][:2] == ["01 abandon #0000", "打孔: 无需打孔"]
+    assert pages[1][-3:] == ["12 about #0003", "前 6 位: 1 2", "后 5 位: 无"]
 
     ctx = create_ctx(
         mocker,
@@ -790,8 +790,8 @@ def test_display_steel_punch_numbers(mocker, amigo):
     assert "钢板打孔数字 2/2" in titles
     assert "01 abandon #0000" in drawn_lines
     assert "12 about #0003" in drawn_lines
-    assert "前6位：1 2" in drawn_lines
-    assert "后5位：无" in drawn_lines
+    assert "前 6 位: 1 2" in drawn_lines
+    assert "后 5 位: 无" in drawn_lines
     assert ctx.input.wait_for_button.call_count == 2
 
 

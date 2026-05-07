@@ -5,6 +5,11 @@ Krux 早期更偏向“只在用的时候加载密钥”的签名器，但现在
 
 Krux 不内置安全芯片，已保存数据的安全性依赖加密和你的备份习惯。无论你用的是设备内存还是 SD 卡，都不要把它当成唯一备份。
 
+## 为什么助记词编号从 0 开始？
+BIP39 词表本身就是 0 到 2047 的序号。Amigo 上的助记词编号、钢板打孔数字和 TinySeed 都统一按这个口径显示和输入，避免把 1-2048 和 0-2047 混在一起。
+
+如果你在看位权，Amigo 的大屏会把 `1 / 2 / 4 / ... / 1024` 从左到右排出来。扫描还原、手动输入和打印都会沿用同一套映射，不需要你自己换算。
+
 ## Amigo 版为什么不做智能卡？
 这份 Amigo 固件的商业化方向是把签名、备份、导入导出、打印和触摸交互做好，不再保留树莓派那条直连智能卡的路线。
 
@@ -27,6 +32,8 @@ Amigo 不适合直接连接 USB ACR39U 这类桌面智能卡读卡器，也不�
 
 ## 为什么固件看起来只有几百 KB？
 `firmware.bin` 本身就是设备固件镜像，体积本来就不大。真正写到板子里的，是它和启动打包文件一起组成的刷机包。
+
+如果你是在 `firmware/MaixPy/projects/maixpy_amigo/build/` 里看到 `maixpy.bin`，那是更底层的应用镜像，体积通常更小也很正常。它和 `build/firmware.bin`、`build/kboot.kfpkg` 不是同一层级的交付物。
 
 如果你看到的是几十 MB 或上百 MB 的压缩包，那通常是：
 
@@ -78,4 +85,3 @@ Krux 的打印功能面向的是 **本地连接的 TTL 串口热敏打印机**�
 3. [Amigo 预编译包烧录](getting-started/installing/from-pre-built-release.zh-CN.md)
 4. [Amigo 源码编译并烧录](getting-started/installing/from-source.zh-CN.md)
 5. [Amigo 迁移计划 / 接手记录](amigo-tp-web3-port-plan.zh-CN.md)
-

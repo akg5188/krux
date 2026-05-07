@@ -188,7 +188,7 @@ class Home(Page):
         """Add or replace wallet's passphrase"""
         if not self.prompt(
             self._amigo_text(
-                "添加或修改钱包密码短语？",
+                "添加或修改密码短语?",
                 t("Add or change wallet passphrase?"),
             ),
             self.ctx.display.height() // 2,
@@ -223,7 +223,8 @@ class Home(Page):
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
             self._amigo_text(
-                "自定义钱包会生成新的密钥，并卸载当前描述符。\n"
+                "自定义钱包会生成新密钥。\n"
+                "当前描述符会卸载。\n"
                 "助记词和密码短语会保留。",
                 t(
                     "Customizing your wallet will generate a new Key and unload the Descriptor."
@@ -232,7 +233,7 @@ class Home(Page):
                 + t("Mnemonic and passphrase will be kept."),
             )
         )
-        if not self.prompt(self._amigo_text("继续？", t("Proceed?")), BOTTOM_PROMPT_LINE):
+        if not self.prompt(self._amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
             return MENU_CONTINUE
 
         from ..wallet_settings import WalletSettings
@@ -261,7 +262,7 @@ class Home(Page):
     def bip85(self):
         """Handler for the 'BIP85' menu item"""
         if not self.prompt(
-            self._amigo_text("派生 BIP85 熵？", t("Derive BIP85 entropy?")),
+            self._amigo_text("派生 BIP85 子项?", t("Derive BIP85 entropy?")),
             self.ctx.display.height() // 2,
         ):
             return MENU_CONTINUE
@@ -276,7 +277,7 @@ class Home(Page):
         """Handler for the 'Mnemonic XOR' menu item"""
         if not self.prompt(
             self._amigo_text(
-                "要把当前助记词与另一组助记词做 XOR 吗？\n"
+                "要把当前助记词与另一组助记词做 XOR 吗?\n"
                 "密码短语和描述符会被丢弃。",
                 t(
                     "XOR current mnemonic with another one? "
@@ -314,7 +315,7 @@ class Home(Page):
                 (t("Customize"), self.customize),
                 ("BIP85", self.bip85),
                 (t("Mnemonic XOR"), self.mnemonic_xor),
-                ("二次助记词", self.secondary_mnemonic),
+                ("二次助记词\nTP 风格", self.secondary_mnemonic),
             ],
         )
         submenu.run_loop()
@@ -333,7 +334,7 @@ class Home(Page):
             submenu = Menu(
                 self.ctx,
                 [
-                    ("交易单签名", self.sign_psbt),
+                    ("交易签名", self.sign_psbt),
                     ("消息签名", self.sign_message),
                 ],
             )
@@ -455,7 +456,7 @@ class Home(Page):
                 )
                 self.ctx.display.clear()
                 if self.prompt(
-                    self._amigo_text("完成？", t("Done?")),
+                    self._amigo_text("完成?", t("Done?")),
                     self.ctx.display.height() // 2,
                 ):
                     return MENU_CONTINUE
@@ -542,7 +543,7 @@ class Home(Page):
                 warning_text,
                 highlight_prefix=":",
             )
-            return self.prompt(self._amigo_text("继续？", t("Proceed?")), BOTTOM_PROMPT_LINE)
+            return self.prompt(self._amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE)
 
         return True
 
@@ -577,7 +578,7 @@ class Home(Page):
                 warning_text,
                 highlight_prefix=":",
             )
-            if not self.prompt(self._amigo_text("继续？", t("Proceed?")), BOTTOM_PROMPT_LINE):
+            if not self.prompt(self._amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
                 return False
 
         # Show the policy for multisig and miniscript PSBTs
@@ -590,7 +591,7 @@ class Home(Page):
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(policy_str)
             if not self.prompt(
-                self._amigo_text("继续？", t("Proceed?")),
+                self._amigo_text("继续?", t("Proceed?")),
                 BOTTOM_PROMPT_LINE,
             ):
                 return False
@@ -606,7 +607,7 @@ class Home(Page):
                     "交易单中未设置指纹", t("Fingerprint unset in PSBT")
                 )
             )
-            if not self.prompt(self._amigo_text("继续？", t("Proceed?")), BOTTOM_PROMPT_LINE):
+            if not self.prompt(self._amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE):
                 return False
 
         return True
@@ -635,7 +636,7 @@ class Home(Page):
                 highlight_prefix=":",
             )
 
-            return self.prompt(self._amigo_text("继续？", t("Proceed?")), BOTTOM_PROMPT_LINE)
+            return self.prompt(self._amigo_text("继续?", t("Proceed?")), BOTTOM_PROMPT_LINE)
 
         return True
 

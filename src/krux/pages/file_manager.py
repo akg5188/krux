@@ -27,8 +27,16 @@ from ..krux_settings import t
 from ..format import generate_thousands_separator, render_decimal_separator
 from ..display import BOTTOM_PROMPT_LINE
 from ..settings import SD_PATH, SETTINGS_FILENAME, MNEMONICS_FILE
+from ..kboard import kboard
 
 SD_ROOT_PATH = "/" + SD_PATH
+
+
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
 
 
 class FileManager(Page):
@@ -150,9 +158,14 @@ class FileManager(Page):
         file = self.display_file(file)
         if file in (SETTINGS_FILENAME, MNEMONICS_FILE):
             self.ctx.input.wait_for_button()
-        elif self.prompt(t("Delete this file?"), BOTTOM_PROMPT_LINE):
+        elif self.prompt(
+            amigo_text("删除此文件?", t("Delete this file?")), BOTTOM_PROMPT_LINE
+        ):
             self.ctx.display.clear()
-            if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+            if self.prompt(
+                amigo_text("确定删除?", t("Are you sure?")),
+                self.ctx.display.height() // 2,
+            ):
                 with SDHandler() as sd:
                     sd.delete(file)
                 return MENU_RESTART
@@ -162,7 +175,7 @@ class FileManager(Page):
         """Handler to ask if will load selected file in the file explorer"""
 
         self.display_file(file)
-        if self.prompt(t("Load?"), BOTTOM_PROMPT_LINE):
+        if self.prompt(amigo_text("加载?", t("Load?")), BOTTOM_PROMPT_LINE):
             return MENU_EXIT
         return MENU_CONTINUE
 
@@ -187,7 +200,7 @@ class FileManager(Page):
             self.ctx.display.draw_hcentered_text(
                 file
                 + "\n\n"
-                + t("Size:")
+                + amigo_text("大小:", t("Size:"))
                 + " "
                 + generate_thousands_separator(int(size_KB))
                 + render_decimal_separator()
@@ -200,7 +213,9 @@ class FileManager(Page):
         ) * FONT_HEIGHT
         offset_y += (
             self.ctx.display.draw_hcentered_text(
-                t("Created:"), offset_y, color=theme.highlight_color
+                amigo_text("创建时间:", t("Created:")),
+                offset_y,
+                color=theme.highlight_color,
             )
         ) * FONT_HEIGHT
         offset_y += (
@@ -211,7 +226,9 @@ class FileManager(Page):
         )
         offset_y += (
             self.ctx.display.draw_hcentered_text(
-                t("Modified:"), offset_y, color=theme.highlight_color
+                amigo_text("修改时间:", t("Modified:")),
+                offset_y,
+                color=theme.highlight_color,
             )
         ) * FONT_HEIGHT
         self.ctx.display.draw_hcentered_text(format_datetime % modified[:5], offset_y)

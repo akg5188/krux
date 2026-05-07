@@ -27,6 +27,13 @@ from ..krux_settings import t
 from ..themes import theme
 from ..kboard import kboard
 
+
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
+
 POOR_VARIANCE_TH = 10  # RMS value of L, A, B channels considered poor
 INSUFFICIENT_VARIANCE_TH = 5  # RMS value of L, A, B channels considered insufficient
 INSUFFICIENT_SHANNONS_ENTROPY_TH = 3  # bits per pixel
@@ -110,15 +117,19 @@ class CameraEntropy(Page):
                 )
                 if entropy_level == GOOD_ENTROPY:
                     self.ctx.display.draw_hcentered_text(
-                        t("Good entropy"), self.y_label_offset, theme.go_color
+                        amigo_text("熵质量良好", t("Good entropy")),
+                        self.y_label_offset,
+                        theme.go_color,
                     )
                 elif entropy_level == POOR_ENTROPY:
                     self.ctx.display.draw_hcentered_text(
-                        t("Poor entropy!"), self.y_label_offset, theme.del_color
+                        amigo_text("熵质量较低", t("Poor entropy!")),
+                        self.y_label_offset,
+                        theme.del_color,
                     )
                 else:
                     self.ctx.display.draw_hcentered_text(
-                        t("Insufficient entropy!"),
+                        amigo_text("熵不足", t("Insufficient entropy!")),
                         self.y_label_offset,
                         theme.error_color,
                     )
@@ -144,7 +155,9 @@ class CameraEntropy(Page):
         from ..format import replace_decimal_separator, generate_thousands_separator
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("TOUCH or ENTER to capture"))
+        self.ctx.display.draw_centered_text(
+            amigo_text("轻触或按确认键采集", t("TOUCH or ENTER to capture"))
+        )
         self.ctx.display.to_landscape()
         self.ctx.camera.initialize_run(mode=ENTROPY_MODE)
         self.ctx.display.clear()
@@ -171,10 +184,10 @@ class CameraEntropy(Page):
 
         # User cancelled
         if command == CANCEL_PRESSED:
-            self.flash_text(t("Capture cancelled"))
+            self.flash_text(amigo_text("采集已取消", t("Capture cancelled")))
             return None
 
-        self.ctx.display.draw_centered_text(t("Processing…"))
+        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
 
         self.entropy_measurement_update(img, all_at_once=True, show_measurement=False)
 
@@ -186,21 +199,24 @@ class CameraEntropy(Page):
         shannon_16b = shannon.entropy_img16b(img_bytes)
         shannon_16b_total = shannon_16b * img_pixels
 
-        entropy_msg = t("Shannon's entropy:") + "\n"
+        entropy_msg = amigo_text("香农熵:", t("Shannon's entropy:")) + "\n"
         entropy_msg += (t("%s bits") + "\n") % generate_thousands_separator(
             int(shannon_16b_total)
         )
         entropy_msg += (t("(%s bits/px)") + "\n\n") % replace_decimal_separator(
             "%.2g" % shannon_16b
         )
-        entropy_msg += "%s %s" % (t("Pixels deviation index:"), str(self.stdev_index))
+        entropy_msg += "%s %s" % (
+            amigo_text("像素偏差指数:", t("Pixels deviation index:")),
+            str(self.stdev_index),
+        )
         self.ctx.display.clear()
         self.ctx.input.reset_ios_state()
         if (
             shannon_16b < INSUFFICIENT_SHANNONS_ENTROPY_TH
             or self.stdev_index < INSUFFICIENT_VARIANCE_TH
         ):
-            error_msg = t("Insufficient entropy!")
+            error_msg = amigo_text("熵不足!", t("Insufficient entropy!"))
             error_msg += "\n\n"
             error_msg += entropy_msg
             self.ctx.display.draw_centered_text(error_msg, theme.error_color)

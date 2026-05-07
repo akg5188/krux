@@ -99,7 +99,7 @@ class SettingsPage(Page):
             for i in range(4):
                 self.ctx.input.touch.add_x_delimiter(DEFAULT_PADDING + button_width * i)
             offset_y += FONT_HEIGHT
-            keys = ["<", t("Go"), ">"]
+            keys = ["<", amigo_text("确认", t("Go")), ">"]
             for i, x in enumerate(self.ctx.input.touch.x_regions[:-1]):
                 self.ctx.display.outline(
                     x,
@@ -170,7 +170,7 @@ class SettingsPage(Page):
         self.ctx.display.clear()
         if not self.prompt(
             amigo_text(
-                "输入至少 6 位防篡改码\n（实验性）",
+                "输入至少 6 位防篡改码\n(实验性)",
                 t("Enter a 6+ characters Tamper Check Code")
                 + "\n"
                 + t("(Experimental)"),

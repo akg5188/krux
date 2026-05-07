@@ -1746,7 +1746,7 @@ def test_kefenvelope_seal_ui(m5stickv, mocker):
     ctx.display.draw_centered_text.assert_has_calls(
         [
             mocker.call("Use default PBKDF2 iter.? 100001", highlight_prefix="?"),
-            mocker.call("Use default Mode? AES-GCM", highlight_prefix="?"),
+            mocker.call("Use default Version? AES-GCM", highlight_prefix="?"),
             mocker.call("Additional entropy from camera required for AES-GCM"),
             mocker.call("Update KEF ID? my ID", highlight_prefix="?"),
         ]

@@ -66,7 +66,7 @@ class WalletDescriptor(Page):
         if self.ctx.wallet.key is None:
             # No key loaded, so it's being called from tools -> descriptor addresses
             text = amigo_text(
-                "加载受信任描述符\n查看地址？（只读）",
+                "加载钱包描述符\n仅查看地址?",
                 t("Load a trusted wallet descriptor to view addresses?")
                 + "\n"
                 + t("(watch-only)"),
@@ -79,7 +79,7 @@ class WalletDescriptor(Page):
                 t("Wallet output descriptor not found."),
             )
             self.ctx.display.draw_centered_text(text)
-            if self.prompt(amigo_text("加载？", t("Load?")), BOTTOM_PROMPT_LINE):
+            if self.prompt(amigo_text("加载?", t("Load?")), BOTTOM_PROMPT_LINE):
                 return self._load_wallet()
         else:
             if kboard.is_amigo:
@@ -287,7 +287,7 @@ class WalletDescriptor(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(
-            amigo_text("钱包不匹配:", t("Wallet mismatch:")),
+            amigo_text("钱包描述符不匹配:", t("Wallet mismatch:")),
             DEFAULT_PADDING,
             theme.error_color,
         )
@@ -302,7 +302,7 @@ class WalletDescriptor(Page):
         )
 
         if not self.prompt(
-            amigo_text("切换钱包？", t("Change wallet?")), BOTTOM_PROMPT_LINE
+            amigo_text("切换钱包?", t("Change wallet?")), BOTTOM_PROMPT_LINE
         ):
             return None, None
 
@@ -360,7 +360,7 @@ class WalletDescriptor(Page):
         if wallet_load_exception:
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                amigo_text("钱包无效:", t("Invalid wallet:"))
+                amigo_text("钱包描述符无效:", t("Invalid wallet:"))
                 + "\n%s" % repr(wallet_load_exception),
                 theme.error_color,
             )
@@ -375,18 +375,18 @@ class WalletDescriptor(Page):
         if not wallet.has_change_addr():
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                amigo_text("无法确定找零地址。", t("Could not determine change address.")),
+                amigo_text("无法确认找零地址。", t("Could not determine change address.")),
                 theme.error_color,
             )
             if not self.prompt(
-                amigo_text("仍要继续？", t("Proceed anyway?")), BOTTOM_PROMPT_LINE
+                amigo_text("仍要继续?", t("Proceed anyway?")), BOTTOM_PROMPT_LINE
             ):
                 return MENU_CONTINUE
 
         # Display wallet and confirm loading
         self.ctx.display.clear()
         self.display_loading_wallet(wallet)
-        if self.prompt(amigo_text("加载？", t("Load?")), BOTTOM_PROMPT_LINE):
+        if self.prompt(amigo_text("加载?", t("Load?")), BOTTOM_PROMPT_LINE):
             self.ctx.wallet = wallet
             self.flash_text(
                 amigo_text(
@@ -447,11 +447,11 @@ class WalletDescriptor(Page):
                     and wallet.is_miniscript()
                     and wallet.policy.get("type") == P2TR
                 ):
-                    key_fingerprint = t("TR internal key")
+                    key_fingerprint = amigo_text("TR 内部密钥", t("TR internal key"))
                     label_color = theme.disabled_color
                     unused_key_index = chr(65 + i)
                 else:
-                    key_fingerprint += t("unknown")
+                    key_fingerprint += amigo_text("未知", t("unknown"))
             #  Check if the key is the one loaded in the wallet
             if (
                 self.ctx.wallet.key
@@ -480,7 +480,9 @@ class WalletDescriptor(Page):
             elif (
                 i == 0 and wallet.is_miniscript() and wallet.policy.get("type") == P2TR
             ):
-                for line in self.ctx.display.to_lines(t("Provably unspendable")):
+                for line in self.ctx.display.to_lines(
+                    amigo_text("可证明无法花费", t("Provably unspendable"))
+                ):
                     self.ctx.display.draw_string(
                         sub_padding, offset_y, line, label_color
                     )

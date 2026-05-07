@@ -4,9 +4,7 @@ from .. import create_ctx
 
 
 def _low_entropy_error_text():
-    from krux.krux_settings import t
-
-    return t("Error:") + "\nValueError('Low entropy mnemonic')"
+    return "错误:\nValueError('助记词熵过低')"
 
 
 def test_xor_bytes(mocker, m5stickv):
@@ -54,15 +52,32 @@ def test_fail_xor_bytes_different_lengths(mocker, m5stickv):
     a = b"\x05\xdc\x07\xde\x04\x20\x00\x7d\x06\x35\x00\xe1\x01\xbf\x07\x23\x05\x8e\x01\x94\x07\x4e\x00\x01"
     b = b"\x04\x11\x04\x6d\x01\xff\x03\x7d\x03\xeb\x02\xcd\x01\x06\x00\x1f\x03\x88\x03\xe0\x05\x78\x07\x63\x02\x27\x02\xe8\x06\x3e\x01\x05\x06\x20\x04\xb0\x07\x33\x01\xa2\x03\xbd\x06\x1a\x01\xd9\x04\x22"
 
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(ValueError, match="两组数据长度必须相同"):
         MnemonicXOR._xor_bytes(a, b)
 
-    assert str(exc.value) == "Sequences should have same length"
-
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(ValueError, match="两组数据长度必须相同"):
         MnemonicXOR._xor_bytes(b, a)
 
-    assert str(exc.value) == "Sequences should have same length"
+
+def test_validate_entropy_rejects_low_shannon_entropy(mocker, m5stickv):
+    from src.krux.pages.home_pages.mnemonic_xor import MnemonicXOR
+
+    low_entropy = b"\x00\x01" * 8
+
+    with pytest.raises(ValueError, match="助记词熵过低"):
+        MnemonicXOR._validate_entropy(low_entropy)
+
+
+def test_validate_entropy_allows_reasonable_shannon_entropy(mocker, m5stickv):
+    from src.krux.pages.home_pages.mnemonic_xor import MnemonicXOR
+
+    entropy = bytes(range(16))
+
+    assert (
+        MnemonicXOR._shannon_entropy(entropy)
+        >= MnemonicXOR.LOW_ENTROPY_BITS_PER_BYTE_TH
+    )
+    MnemonicXOR._validate_entropy(entropy)
 
 
 def test_xor_with_current_mnemonic(mocker, m5stickv, tdata):
@@ -128,14 +143,12 @@ def test_fail_xor_mnemonics_different_lengths(mocker, m5stickv, tdata):
     ]
 
     for case in cases:
-        with pytest.raises(ValueError) as exc:
+        with pytest.raises(ValueError, match="两组助记词长度必须相同"):
             key = Key(case[0], TYPE_SINGLESIG, NETWORKS["test"])
             wallet = Wallet(key)
             ctx = create_ctx(mocker, case, wallet)
             m = MnemonicXOR(ctx)
             m.xor_with_current_mnemonic(case[1])
-
-            assert str(exc.value) == "Mnemonics should have same length"
 
 
 def test_menu_load_and_back(mocker, m5stickv, tdata):
@@ -244,6 +257,26 @@ def test_menu_load_qrcode_and_back(mocker, amigo, tdata):
         assert ctx.wallet.key.fingerprint.hex() == "a70e2c26"
         assert ctx.input.wait_for_button.call_count == len(case)
         n += 1
+
+
+def test_menu_load_qrcode_and_decline_load(mocker, amigo, tdata):
+    from embit.networks import NETWORKS
+    from krux.pages import MENU_CONTINUE
+    from krux.pages.home_pages.mnemonic_xor import MnemonicXOR
+    from krux.key import Key, TYPE_SINGLESIG
+    from krux.wallet import Wallet
+
+    key = Key(tdata.TEST_XOR_12_WORD_MNEMONIC_1, TYPE_SINGLESIG, NETWORKS["test"])
+    wallet = Wallet(key)
+    ctx = create_ctx(mocker, None, wallet)
+    m = MnemonicXOR(ctx)
+    m.prompt = mocker.MagicMock(side_effect=[True, True, False])
+
+    result = m._load_key_from_words(tdata.TEST_XOR_12_WORD_MNEMONIC_2.split())
+
+    assert result == MENU_CONTINUE
+    assert ctx.wallet.key.mnemonic == tdata.TEST_XOR_12_WORD_MNEMONIC_1
+    assert ctx.wallet.key.fingerprint.hex() == "a70e2c26"
 
 
 def test_load_from_qrcode(mocker, amigo, tdata):

@@ -40,6 +40,14 @@ from ..input import (
 )
 from ..kboard import kboard
 
+
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
+
+
 STANDARD_MODE = 0
 LINE_MODE = 1
 ZOOMED_R_MODE = 2
@@ -138,7 +146,7 @@ class SeedQRView(Page):
     def _region_legend(self, row, column):
         region_char = chr(65 + row)
         self.ctx.display.draw_hcentered_text(
-            t("Region:") + " " + region_char + str(column + 1),
+            amigo_text("区域", t("Region:")) + " " + region_char + str(column + 1),
             self.ctx.display.qr_offset(),
             color=theme.highlight_color,
         )
@@ -181,7 +189,7 @@ class SeedQRView(Page):
                     theme.highlight_color,
                 )
             self.ctx.display.draw_hcentered_text(
-                t("Line:") + " " + str(self.lr_index + 1),
+                amigo_text("行", t("Line:")) + " " + str(self.lr_index + 1),
                 self.ctx.display.qr_offset(),
                 color=theme.highlight_color,
             )
@@ -376,11 +384,12 @@ class SeedQRView(Page):
 
                 bmp_img.save(SDHandler.PATH_STR % new_filename)
                 self.flash_text(
-                    t("Saved to SD card:") + "\n\n%s" % new_filename,
+                    amigo_text("已保存到 SD 卡:", t("Saved to SD card:"))
+                    + "\n\n%s" % new_filename,
                     highlight_prefix=":",
                 )
         except:
-            self.flash_text(t("SD card not detected."))
+            self.flash_text(amigo_text("未检测到 SD 卡。", t("SD card not detected.")))
 
     def save_svg_image(self, file_name):
         """Save QR code image as .svg file"""
@@ -388,7 +397,7 @@ class SeedQRView(Page):
         from .file_operations import SaveFile
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(t("Processing…"))
+        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
 
         code, size = self.add_frame(self.code, self.qr_size)
 
@@ -462,7 +471,9 @@ class SeedQRView(Page):
                 bmp_resolutions.append(resolution)
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(
-            t("Res. - Format"), FONT_HEIGHT, info_box=True
+            amigo_text("分辨率 - 格式", t("Res. - Format")),
+            FONT_HEIGHT,
+            info_box=True,
         )
         qr_menu = []
         qr_menu.append(
@@ -519,7 +530,7 @@ class SeedQRView(Page):
         else:
             label = ""
         if transcript_tools and kboard.has_touchscreen:
-            label += "\n" + t("Swipe to change mode")
+            label += "\n" + amigo_text("上下滑动切换模式", t("Swipe to change mode"))
         mode = 0
         while True:
             button = None
@@ -567,35 +578,33 @@ class SeedQRView(Page):
             if quick_exit:
                 return MENU_CONTINUE
             printer_func = self.print_qr if self.has_printer() else None
-            if kboard.is_amigo:
-                qr_menu = [
-                    ("返回查看器\n继续浏览", lambda: None),
-                    ("切换亮度\n调整显示", toggle_brightness),
+            qr_menu = [
+                (
+                    amigo_text("返回查看器\n继续浏览", t("Return to QR Viewer")),
+                    lambda: None,
+                ),
+                (
+                    amigo_text("切换亮度\n调整显示", t("Toggle Brightness")),
+                    toggle_brightness,
+                ),
+                (
+                    amigo_text("保存二维码\n到 SD 卡", t("Save QR Image to SD Card")),
                     (
-                        "保存二维码\n到 SD 卡",
-                        (
-                            self.save_qr_image_menu
-                            if allow_export and self.has_sd_card()
-                            else None
-                        ),
+                        self.save_qr_image_menu
+                        if allow_export and self.has_sd_card()
+                        else None
                     ),
-                    ("打印二维码\n输出到打印机", printer_func),
-                ]
-            else:
-                qr_menu = [
-                    (t("Return to QR Viewer"), lambda: None),
-                    (t("Toggle Brightness"), toggle_brightness),
-                    (
-                        t("Save QR Image to SD Card"),
-                        (
-                            self.save_qr_image_menu
-                            if allow_export and self.has_sd_card()
-                            else None
-                        ),
-                    ),
-                    (t("Print as QR"), printer_func),
-                ]
-            submenu = Menu(self.ctx, qr_menu, back_label=t("Back to Menu"))
+                ),
+                (
+                    amigo_text("打印二维码\n输出到打印机", t("Print as QR")),
+                    printer_func,
+                ),
+            ]
+            submenu = Menu(
+                self.ctx,
+                qr_menu,
+                back_label=amigo_text("返回菜单", t("Back to Menu")),
+            )
             _, status = submenu.run_loop()
             if status == MENU_EXIT:
                 return MENU_CONTINUE

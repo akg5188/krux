@@ -98,22 +98,38 @@ def test_delete_mnemonic_from_sd(m5stickv, mocker, mock_file_operations):
     assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
-# def test_create_qr(amigo, mocker):
-#    """Test that QR creation tool is called with the correct text"""
-#    from krux.pages.media_tool import MediaTool
-#    from krux.input import BUTTON_ENTER
-#
-#    BTN_SEQUENCE = [BUTTON_ENTER]
-#
-#    with patch("krux.pages.qr_view.SeedQRView") as Mocked_QRView:
-#        ctx = create_ctx(mocker, BTN_SEQUENCE)
-#
-#        test_tools = MediaTool(ctx)
-#        test_tools.capture_from_keypad = mocker.MagicMock(return_value="test")
-#        test_tools.create_qr()
-#
-#        Mocked_QRView.assert_called_with(ctx, data="test", title="Text QR Code")
-#    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
+def test_create_qr(amigo, mocker):
+    """Test that QR creation tool is called with the correct text"""
+    from krux.pages.tools import Tools
+    from krux.pages import (
+        LETTERS,
+        UPPERCASE_LETTERS,
+        NUM_SPECIAL_1,
+        NUM_SPECIAL_2,
+    )
+    from krux.input import BUTTON_ENTER
+    from krux.krux_settings import t
+
+    BTN_SEQUENCE = [BUTTON_ENTER]
+
+    ctx = create_ctx(mocker, BTN_SEQUENCE)
+
+    with patch("krux.pages.qr_view.SeedQRView") as Mocked_QRView:
+        test_tools = Tools(ctx)
+        test_tools.capture_from_keypad = mocker.MagicMock(return_value="test")
+        test_tools.create_qr()
+
+        test_tools.capture_from_keypad.assert_called_once_with(
+            "输入文本",
+            [LETTERS, UPPERCASE_LETTERS, NUM_SPECIAL_1, NUM_SPECIAL_2],
+        )
+        Mocked_QRView.assert_called_once_with(
+            ctx, data="test", title=t("Custom QR Code")
+        )
+        Mocked_QRView.return_value.display_qr.assert_called_once_with(
+            allow_export=True
+        )
+    assert ctx.input.wait_for_button.call_count == len(BTN_SEQUENCE)
 
 
 def test_load_descriptor_adresses(m5stickv, mocker):

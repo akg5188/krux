@@ -64,6 +64,8 @@ git submodule update --init --recursive
 
 如果你只看到了 `firmware.bin`，先不要烧录，说明打包步骤没有完整跑通。请重新执行上面的构建命令，确认 `kboot.kfpkg` 也生成了。
 
+如果你已经在 `firmware/MaixPy/projects/maixpy_amigo/build/` 里看到了 `maixpy.bin` 和 `maixpy.elf`，那说明你看到的是更底层的应用构建产物。普通交付还是建议优先刷 `build/firmware.bin` 和 `build/kboot.kfpkg`；如果你只想直接更新 `maixpy.bin`，可以看[Amigo 直接烧录 `maixpy.bin`](from-maixpy-bin.zh-CN.md)。
+
 ## 3. 连接 Amigo
 
 1. 用 USB-C 线连接 `Amigo` **底部** 的 USB-C 口。

@@ -102,7 +102,7 @@ run_simulator --sequence sequences/web3-typed-transaction.txt --sd --device $dev
 # Tools
 run_simulator --sequence sequences/tools-datum-tool.txt  --sd --device $device
 run_simulator --sequence sequences/tools-check-sd.txt  --sd --device $device
-# run_simulator --sequence sequences/tools-create-QR.txt  --sd --device $device
+run_simulator --sequence sequences/tools-create-QR.txt  --sd --device $device
 # run_simulator --sequence sequences/tools-mnemonic.txt  --sd --device $device
 run_simulator --sequence sequences/tools-device-tests-test-suite.txt  --sd --device $device
 run_simulator --sequence sequences/tools-print-test-qr.txt  --sd --device $device

@@ -921,7 +921,7 @@ class Menu:
                 self.ctx.display.draw_string(
                     12,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    "Test",
+                    "测试网" if kboard.is_amigo else "Test",
                     GREEN,
                     theme.info_bg_color,
                 )
@@ -929,7 +929,7 @@ class Menu:
                 self.ctx.display.draw_string(
                     6,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    "T",
+                    "测" if kboard.is_amigo else "T",
                     GREEN,
                     theme.info_bg_color,
                 )

@@ -60,7 +60,9 @@ class Bip85(Page):
         utils = Utils(self.ctx)
         child_index = ""
         while child_index == "":
-            child_index = utils.capture_index_from_keypad(t("Index"))
+            child_index = utils.capture_index_from_keypad(
+                amigo_text("索引", t("Index"))
+            )
         if child_index is None:
             return MENU_CONTINUE
 
@@ -90,12 +92,16 @@ class Bip85(Page):
             self.ctx.display.draw_centered_text(
                 key.fingerprint_hex_str(True), color=theme.highlight_color
             )
-        if self.prompt(t("Load?"), BOTTOM_PROMPT_LINE):
+        if self.prompt(amigo_text("加载?", t("Load?")), BOTTOM_PROMPT_LINE):
             from ...wallet import Wallet
 
             self.ctx.wallet = Wallet(key)
             self.flash_text(
-                t("%s: loaded!") % key.fingerprint_hex_str(True), highlight_prefix=":"
+                amigo_text(
+                    "%s 已加载" % key.fingerprint_hex_str(True),
+                    t("%s: loaded!") % key.fingerprint_hex_str(True),
+                ),
+                highlight_prefix=":",
             )
 
         return MENU_CONTINUE
@@ -125,7 +131,9 @@ class Bip85(Page):
         utils = Utils(self.ctx)
         child_index = ""
         while child_index == "":
-            child_index = utils.capture_index_from_keypad(t("Index"))
+            child_index = utils.capture_index_from_keypad(
+                amigo_text("索引", t("Index"))
+            )
         if child_index is None:
             return MENU_CONTINUE
 
@@ -133,7 +141,7 @@ class Bip85(Page):
         pwd_len = ""
         while pwd_len == "":
             pwd_len = utils.capture_index_from_keypad(
-                t("Password Length"),
+                amigo_text("密码长度", t("Password Length")),
                 initial_val=DEFAULT_PWD_LEN,
                 range_min=PWD_MIN_LEN,
                 range_max=PWD_MAX_LEN,
@@ -150,8 +158,8 @@ class Bip85(Page):
         password = password[:pwd_len]
         password_title = amigo_text("BIP85 密码", t("Base64 Password"))
         info = password
-        info += "\n\n" + amigo_text("索引 %s" % child_index, t("Index") + " %s" % child_index)
-        info += "\n" + amigo_text("长度 %s" % pwd_len, t("Length:") + " %s" % pwd_len)
+        info += "\n\n" + amigo_text("索引: %s" % child_index, t("Index") + " %s" % child_index)
+        info += "\n" + amigo_text("长度: %s" % pwd_len, t("Length:") + " %s" % pwd_len)
         highlight_prefix = " " if kboard.is_amigo else ":"
         while True:
             if kboard.is_amigo:
@@ -196,7 +204,7 @@ class Bip85(Page):
         """Exports BIP85 child mnemonics"""
         if kboard.is_amigo:
             mnemonic_label = "BIP39 子助记词\n派生新钱包"
-            password_label = "派生密码\n生成随机密码"
+            password_label = "随机密码\n派生字符串"
         else:
             mnemonic_label = t("BIP39 Mnemonic")
             password_label = t("Base64 Password")

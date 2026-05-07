@@ -56,7 +56,7 @@ class Addresses(Page):
         ):
             self.flash_error(
                 self._amigo_text(
-                    "请先加载钱包输出描述符",
+                    "请先加载钱包描述符",
                     t("Please load a wallet output descriptor"),
                 )
             )
@@ -91,7 +91,7 @@ class Addresses(Page):
         ):
             self.flash_error(
                 self._amigo_text(
-                    "请先加载钱包输出描述符",
+                    "请先加载钱包描述符",
                     t("Please load a wallet output descriptor"),
                 )
             )
@@ -226,7 +226,7 @@ class Addresses(Page):
         start_address = ""
         while start_address == "":
             start_address = utils.capture_index_from_keypad(
-                self._amigo_text("起始索引", t("Index")), initial_val=0
+                self._amigo_text("起始编号", t("Index")), initial_val=0
             )
         if start_address is None:
             return
@@ -351,26 +351,23 @@ class Addresses(Page):
         if self.ctx.wallet.is_loaded() or not self.ctx.wallet.is_multisig():
             self.ctx.display.clear()
             if not self.prompt(
-                self._amigo_text(
-                    "确认该地址属于此钱包？",
-                    t("Check that address belongs to this wallet?"),
-                ),
+                self._amigo_text("确认这是本钱包地址?", t("Check that address belongs to this wallet?")),
                 self.ctx.display.height() // 2,
             ):
                 return MENU_CONTINUE
 
             checking_match_txt = self._amigo_text(
-                "正在验证… %d 到 %d", t("Verifying…") + " " + t("%d to %d")
+                "正在核对地址… %d-%d", t("Verifying…") + " " + t("%d to %d")
             )
             checked_no_match_txt = self._amigo_text(
-                "已检查 %d 个地址，未找到匹配项。",
+                "已检查 %d 个地址，没找到匹配项。",
                 t("Checked %d addresses with no matches."),
             )
             is_valid_txt = self._amigo_text(
-                "%s\n\n是有效地址", "%s\n\n" + t("is a valid address!")
+                "%s\n\n该地址属于本钱包", "%s\n\n" + t("is a valid address!")
             )
             not_found_txt = self._amigo_text(
-                "%s\n\n在前 %d 个地址中没有找到",
+                "%s\n\n未在前 %d 个地址中找到",
                 "%s\n\n" + t("was NOT FOUND in the first %d addresses"),
             )
 
@@ -399,7 +396,7 @@ class Addresses(Page):
                         checked_no_match_txt % num_checked
                     )
                     if not self.prompt(
-                        self._amigo_text("继续查找更多吗？", t("Try more?")),
+                        self._amigo_text("继续查找下一批?", t("Try more?")),
                         BOTTOM_PROMPT_LINE,
                     ):
                         break

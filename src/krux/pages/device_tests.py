@@ -123,7 +123,7 @@ class DeviceTests(Page):
                     highlight_prefix=":",
                 )
                 if self.prompt(
-                    amigo_text("浏览文件？", t("Explore files?")), BOTTOM_PROMPT_LINE
+                    amigo_text("浏览文件?", t("Explore files?")), BOTTOM_PROMPT_LINE
                 ):
                     from .file_manager import FileManager
 
@@ -176,7 +176,7 @@ class DeviceTests(Page):
             for idx, test in enumerate(all_tests):
                 self.ctx.display.draw_centered_text(" " * chars_per_line)  #
                 self.ctx.display.draw_centered_text(
-                    amigo_text("处理中…", t("Processing…"))
+                    amigo_text("检测中…", t("Processing…"))
                     + " {}/{}".format(idx + 1, len(all_tests))
                 )
 
@@ -211,7 +211,7 @@ class DeviceTests(Page):
                     x
                     for x in [
                         amigo_text("测试结果", t("Test Suite Results")),
-                        amigo_text("成功率:", t("success rate:"))
+                        amigo_text("通过率:", t("success rate:"))
                         + " {}%".format(int((total - failures) / (total) * 100)),
                         (
                             amigo_text("失败:", t("failed:"))

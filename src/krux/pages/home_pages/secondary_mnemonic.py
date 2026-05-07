@@ -21,8 +21,10 @@
 # THE SOFTWARE.
 
 from ...display import BOTTOM_PROMPT_LINE
+from ...krux_settings import t
 from ...key import Key
 from ...wallet import Wallet
+from ...kboard import kboard
 from .. import DIGITS, ESC_KEY, MENU_CONTINUE, Menu, Page
 
 
@@ -33,6 +35,13 @@ STEEL_RESTORE_WEIGHTS = (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
 STEEL_RESTORE_WEIGHT_SET = set(STEEL_RESTORE_WEIGHTS)
 
 
+def amigo_text(chinese, default_text):
+    """Use Chinese text on Amigo while keeping other boards unchanged."""
+    if kboard.is_amigo:
+        return chinese
+    return default_text
+
+
 class SecondaryMnemonic(Page):
     """TP-style second-layer mnemonic transform for Amigo."""
 
@@ -41,10 +50,22 @@ class SecondaryMnemonic(Page):
         submenu = Menu(
             self.ctx,
             [
-                ("默认加密\n+8 +7 +6 ...", self.default_encrypt),
-                ("默认还原\n-8 -7 -6 ...", self.default_restore),
-                ("自定义加密\n12 组 +8/-8", self.custom_encrypt),
-                ("自定义还原\n12 组 +8/-8", self.custom_restore),
+                (
+                    amigo_text("默认加密\n+8 +7 +6 …", t("Default Encrypt")),
+                    self.default_encrypt,
+                ),
+                (
+                    amigo_text("默认还原\n-8 -7 -6 …", t("Default Restore")),
+                    self.default_restore,
+                ),
+                (
+                    amigo_text("自定义加密\n12 组 +8/-8", t("Custom Encrypt")),
+                    self.custom_encrypt,
+                ),
+                (
+                    amigo_text("自定义还原\n12 组 +8/-8", t("Custom Restore")),
+                    self.custom_restore,
+                ),
             ],
         )
         submenu.run_loop()
@@ -258,7 +279,7 @@ class SecondaryMnemonic(Page):
 
         if any(operator in "*/" for operator, _ in entries):
             if not self.prompt(
-                "乘除会丢失信息，真钱包慎用。\n继续?",
+                amigo_text("乘除会丢失信息，真实钱包慎用。\n继续?", t("Proceed?")),
                 self.ctx.display.height() // 2,
             ):
                 return MENU_CONTINUE
@@ -269,7 +290,10 @@ class SecondaryMnemonic(Page):
         if not self._mnemonic_checksum_is_valid(result_mnemonic):
             self.flash_text("结果校验无效\n仅用于备份/还原")
             return MENU_CONTINUE
-        if self.prompt("加载结果为当前助记词?", BOTTOM_PROMPT_LINE):
+        if self.prompt(
+            amigo_text("将结果设为当前助记词?", "Load result as current mnemonic?"),
+            BOTTOM_PROMPT_LINE,
+        ):
             self._load_result(result_mnemonic)
         return MENU_CONTINUE
 
@@ -291,6 +315,6 @@ class SecondaryMnemonic(Page):
         )
         self.ctx.wallet = Wallet(new_key)
         self.flash_text(
-            "%s：已加载" % new_key.fingerprint_hex_str(),
+            "%s 已加载" % new_key.fingerprint_hex_str(),
             highlight_prefix=":",
         )

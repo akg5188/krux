@@ -23,7 +23,6 @@
 from .. import ESC_KEY, MENU_CONTINUE, Menu, Page
 from ..qr_capture import QRCodeCapture
 from ...display import BOTTOM_PROMPT_LINE
-from ...kboard import kboard
 from ...web3 import (
     Web3Error,
     Web3RequestDataType,
@@ -53,16 +52,10 @@ class Web3(Page):
 
     def web3(self):
         """Handler for the top-level Web3 menu item"""
-        if kboard.is_amigo:
-            submenu_items = [
-                ("连接钱包\nOKX / Bitget / MetaMask", self.connect_wallet),
-                ("扫码签名\n消息 / 交易 / TP 中转", self.scan_and_sign),
-            ]
-        else:
-            submenu_items = [
-                ("连接钱包\nOKX / Bitget / MetaMask", self.connect_wallet),
-                ("扫码签名\n消息 / 交易 / TP 中转", self.scan_and_sign),
-            ]
+        submenu_items = [
+            ("连接钱包\nOKX / Bitget / MetaMask", self.connect_wallet),
+            ("扫码签名\n消息 / 交易 / TP 中转", self.scan_and_sign),
+        ]
         submenu = Menu(self.ctx, submenu_items)
         submenu.run_loop()
         return MENU_CONTINUE
@@ -87,10 +80,7 @@ class Web3(Page):
         submenu = Menu(
             self.ctx,
             [
-                (
-                    "OKX 钱包",
-                    lambda: self._connect_wallet_profile(WEB3_WALLET_PROFILE_OKX),
-                ),
+                ("OKX 钱包", lambda: self._connect_wallet_profile(WEB3_WALLET_PROFILE_OKX)),
                 (
                     "Bitget 钱包",
                     lambda: self._connect_wallet_profile(WEB3_WALLET_PROFILE_BITGET),

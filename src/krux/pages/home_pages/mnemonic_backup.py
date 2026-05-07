@@ -96,8 +96,8 @@ class MnemonicsView(Page):
         if kboard.is_amigo:
             words_label = "完整助记词\n逐词查看"
             numbers_label = "助记词编号\n0-2047"
-            entropy_label = "原始熵\nBIP39 熵字节"
-            steel_label = "钢板打孔\n0-2047 位权值"
+            entropy_label = "原始熵\nBIP39 熵"
+            steel_label = "钢板打孔\n位权核对"
             stackbit_label = "1248 打孔板\n打孔备份"
             tinyseed_label = "点阵备份\n查看布局"
         else:
@@ -113,7 +113,8 @@ class MnemonicsView(Page):
                 (
                     words_label,
                     lambda: self.show_mnemonic(
-                        self.ctx.wallet.key.mnemonic, t("Mnemonic")
+                        self.ctx.wallet.key.mnemonic,
+                        amigo_text("助记词", t("Mnemonic")),
                     ),
                 ),
                 (numbers_label, self.display_mnemonic_numbers),
@@ -151,7 +152,10 @@ class MnemonicsView(Page):
         if Settings().hardware.printer.driver == THERMAL_ADAFRUIT_TXT:
             self.ctx.display.clear()
             if self.prompt(
-                t("Print?") + "\n\n" + Settings().hardware.printer.driver + "\n\n",
+                amigo_text("打印助记词?", t("Print?"))
+                + "\n\n"
+                + Settings().hardware.printer.driver
+                + "\n\n",
                 self.ctx.display.height() // 2,
             ):
                 from ..print_page import PrintPage
@@ -229,7 +233,7 @@ class MnemonicsView(Page):
         self.display_mnemonic(
             self._format_entropy_bytes(entropy),
             title="原始熵",
-            suffix="BIP39 熵 %d 位" % (len(entropy) * 8),
+            suffix="BIP39 熵: %d 位" % (len(entropy) * 8),
         )
         self.ctx.input.wait_for_button()
         return MENU_CONTINUE
@@ -251,7 +255,7 @@ class MnemonicsView(Page):
     @staticmethod
     def _format_steel_punch_weight_lines(weights):
         if not weights:
-            return ["打孔：无需打孔"]
+            return ["打孔: 无需打孔"]
 
         selected = set(weights)
         first_half = [
@@ -261,8 +265,8 @@ class MnemonicsView(Page):
             weight for weight in STEEL_PUNCH_WEIGHTS[6:] if weight in selected
         ]
         return [
-            "前6位：" + (" ".join(str(weight) for weight in first_half) or "无"),
-            "后5位：" + (" ".join(str(weight) for weight in second_half) or "无"),
+            "前 6 位: " + (" ".join(str(weight) for weight in first_half) or "无"),
+            "后 5 位: " + (" ".join(str(weight) for weight in second_half) or "无"),
         ]
 
     @classmethod

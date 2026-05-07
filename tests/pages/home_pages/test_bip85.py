@@ -422,7 +422,7 @@ def test_bip85_base64_password_derivation(mocker, amigo, tdata):
     from embit import bip32
 
     def pwd_info(password, idx):
-        return f"{password}\n\n索引 {idx}\n长度 21"
+        return f"{password}\n\n索引: {idx}\n长度: 21"
 
     cases = [
         # case

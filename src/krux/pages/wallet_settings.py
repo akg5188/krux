@@ -81,8 +81,8 @@ class PassphraseEditor(Page):
         while True:
             if kboard.is_amigo:
                 menu_items = [
-                    ("手动输入 BIP39 密码短语", self._load_passphrase),
-                    ("扫描 BIP39 密码短语", self._load_qr_passphrase),
+                    ("手动输入密码短语", self._load_passphrase),
+                    ("扫描密码短语二维码", self._load_qr_passphrase),
                 ]
             else:
                 menu_items = [
@@ -110,7 +110,7 @@ class PassphraseEditor(Page):
                 self.ctx.display.clear()
                 self.ctx.display.draw_hcentered_text(
                     amigo_text(
-                        "检测到密码短语包含非 ASCII 字符。\n"
+                        "密码短语含非 ASCII 字符。\n"
                         "Krux 不能保证其他钱包会派生出相同密钥。",
                         t(
                             "Non-ASCII characters were detected in your passphrase. "
@@ -120,7 +120,7 @@ class PassphraseEditor(Page):
                     )
                 )
                 if not self.prompt(
-                    amigo_text("继续？", t("Proceed?")),
+                    amigo_text("继续?", t("Proceed?")),
                     BOTTOM_PROMPT_LINE,
                 ):
                     continue
@@ -134,7 +134,7 @@ class PassphraseEditor(Page):
                 color=theme.highlight_color,
             )
             self.ctx.display.draw_hcentered_text(
-                amigo_text("密码短语", t("Passphrase")) + " (%d):" % len(passphrase),
+                amigo_text("密码短语", t("Passphrase")) + " %d" % len(passphrase),
                 DEFAULT_PADDING + FONT_HEIGHT * 2,
                 theme.highlight_color,
             )
@@ -142,7 +142,7 @@ class PassphraseEditor(Page):
                 passphrase, DEFAULT_PADDING + FONT_HEIGHT * 3
             )
             if self.prompt(
-                amigo_text("继续？", t("Proceed?")),
+                amigo_text("继续?", t("Proceed?")),
                 BOTTOM_PROMPT_LINE,
             ):
                 return passphrase
@@ -350,7 +350,7 @@ class WalletSettings(Page):
             menu_items = [
                 ("单签", lambda: MENU_EXIT),
                 ("多签", lambda: MENU_EXIT),
-                ("Miniscript（实验性）", lambda: MENU_EXIT),
+                ("Miniscript\n实验性", lambda: MENU_EXIT),
             ]
         else:
             menu_items = [
@@ -375,7 +375,7 @@ class WalletSettings(Page):
                 ("传统地址\nBIP44", lambda: P2PKH),
                 ("兼容隔离见证\nBIP49", lambda: P2SH_P2WPKH),
                 ("原生隔离见证\nBIP84", lambda: P2WPKH),
-                ("Taproot\nBIP86（实验性）", lambda: P2TR),
+                ("Taproot\nBIP86 实验性", lambda: P2TR),
             ]
         else:
             menu_items = [
@@ -509,9 +509,7 @@ class WalletSettings(Page):
                     valid_nodes = False
                     break
             if not valid_nodes:
-                self.flash_error(
-                    amigo_text("派生路径无效", t("Invalid derivation path")),
-                )
+                self.flash_error(amigo_text("派生路径无效", t("Invalid derivation path")))
                 continue
 
             # Check if all nodes are hardened
@@ -527,13 +525,13 @@ class WalletSettings(Page):
                 self.ctx.display.clear()
                 if not self.prompt(
                     amigo_text(
-                        "有些节点不是硬化的：",
+                        "有些节点未硬化:",
                         t("Some nodes are not hardened:"),
                     )
                     + "\n\n"
                     + not_hardened_txt
                     + "\n"
-                    + amigo_text("继续？", t("Proceed?")),
+                    + amigo_text("继续?", t("Proceed?")),
                     self.ctx.display.height() // 2,
                     highlight_prefix=":",
                 ):

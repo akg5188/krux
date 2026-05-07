@@ -956,11 +956,11 @@ def test_change_derivation_path_not_hardened_node(amigo, mocker, tdata):
     )
 
     prompt_text = (
-        "有些节点不是硬化的："
+        "有些节点未硬化:"
         + "\n\n"
         + "节点 3: 2"
         + "\n\n"
-        + "继续？"
+        + "继续?"
     )
     prompt_calls = [
         *(
@@ -1026,11 +1026,11 @@ def test_change_derivation_path_not_hardened_node(amigo, mocker, tdata):
     )
 
     prompt_text = (
-        "有些节点不是硬化的："
+        "有些节点未硬化:"
         + "\n\n"
         + "节点 3: 2"
         + "\n\n"
-        + "继续？"
+        + "继续?"
     )
     prompt_calls = [
         *(

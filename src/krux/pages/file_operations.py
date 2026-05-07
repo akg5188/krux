@@ -71,7 +71,7 @@ class SaveFile(Page):
                             highlight_prefix=":",
                         )
                     if not prompt or self.prompt(
-                        amigo_text("保存到 SD 卡？", t("Save to SD card?")),
+                        amigo_text("保存到 SD 卡?", t("Save to SD card?")),
                         BOTTOM_PROMPT_LINE,
                     ):
                         new_filename = self.set_filename(
@@ -89,7 +89,7 @@ class SaveFile(Page):
                             # clear and say something to the user
                             self.ctx.display.clear()
                             self.ctx.display.draw_centered_text(
-                                amigo_text("处理中…", t("Processing…"))
+                                amigo_text("保存中…", t("Processing…"))
                             )
 
                             # Now save the file
@@ -165,12 +165,12 @@ class SaveFile(Page):
                 self.ctx.display.clear()
                 self.ctx.display.draw_centered_text(
                     amigo_text(
-                        "文件名 %s 已存在于 SD 卡中。" % final_filename,
+                        "文件名已存在：%s" % final_filename,
                         t("Filename %s exists on SD card.") % final_filename,
                     )
                 )
                 if not self.prompt(
-                    amigo_text("覆盖？", t("Overwrite?")),
+                    amigo_text("覆盖现有文件?", t("Overwrite?")),
                     BOTTOM_PROMPT_LINE,
                 ):
                     continue

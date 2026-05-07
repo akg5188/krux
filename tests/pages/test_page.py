@@ -179,6 +179,48 @@ def test_display_qr_code_loop_through_brightness(mocker, m5stickv, mock_page_cls
     ]
 
 
+def test_draw_network_indicator_uses_chinese_label_on_amigo(mocker, amigo):
+    from krux.pages import Menu
+    from embit.networks import NETWORKS
+
+    ctx = mock_context(mocker)
+    ctx.is_logged_in = mocker.MagicMock(return_value=True)
+    ctx.wallet.key.network = NETWORKS["test"]
+    ctx.display.draw_string = mocker.MagicMock()
+
+    menu = Menu(ctx, [], back_label="")
+    menu.draw_network_indicator()
+
+    ctx.display.draw_string.assert_called_with(
+        12,
+        mocker.ANY,
+        "测试网",
+        mocker.ANY,
+        mocker.ANY,
+    )
+
+
+def test_draw_network_indicator_keeps_english_on_non_amigo(mocker, m5stickv):
+    from krux.pages import Menu
+    from embit.networks import NETWORKS
+
+    ctx = mock_context(mocker)
+    ctx.is_logged_in = mocker.MagicMock(return_value=True)
+    ctx.wallet.key.network = NETWORKS["test"]
+    ctx.display.draw_string = mocker.MagicMock()
+
+    menu = Menu(ctx, [], back_label="")
+    menu.draw_network_indicator()
+
+    ctx.display.draw_string.assert_called_with(
+        6,
+        mocker.ANY,
+        "T",
+        mocker.ANY,
+        mocker.ANY,
+    )
+
+
 def get_frame_titles_resulting_from_input(
     mocker, mock_page_cls, title, input_seq, use_buttons=False, has_touch=True
 ):

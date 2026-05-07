@@ -314,13 +314,13 @@ class Stackbit(Page):
         self.ctx.display.draw_string(
             x_offset + 1 * self.x_pad,
             y_offset + label_y_offset,
-            t("Esc"),
+            amigo_text("退出", t("Esc")),
             theme.no_esc_color,
         )
         self.ctx.display.draw_string(
             round(x_offset + 4.2 * self.x_pad),
             y_offset + label_y_offset,
-            t("Go"),
+            amigo_text("确认", t("Go")),
             theme.go_color,
         )
         # print border around buttons only on touch devices
@@ -462,13 +462,19 @@ class Stackbit(Page):
                             continue
                         if word_index == 12:
                             self.ctx.display.clear()
-                            if self.prompt(t("Done?"), self.ctx.display.height() // 2):
+                            if self.prompt(
+                                amigo_text("完成了吗?", t("Done?")),
+                                self.ctx.display.height() // 2,
+                            ):
                                 break
                             # self._map_keys_array() #can be removed?
                         word_index += 1
                 elif index >= STACKBIT_ESC_INDEX:  # ESC
                     self.ctx.display.clear()
-                    if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+                    if self.prompt(
+                        amigo_text("确定要退出吗?", t("Are you sure?")),
+                        self.ctx.display.height() // 2,
+                    ):
                         break
                     # self._map_keys_array()
                 elif index < 14:

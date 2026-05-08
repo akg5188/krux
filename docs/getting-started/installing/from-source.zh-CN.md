@@ -5,6 +5,7 @@
 如果你只是想先把机器刷起来，建议先看[官方预编译包烧录教程](from-pre-built-release.zh-CN.md)。
 如果你已经改过代码，或者想自己编译，就继续看这篇。
 如果你在看这篇时遇到智能卡、USB 口、打印机或者固件大小问题，先看[Amigo 常见问题](../../faq.zh-CN.md)。
+如果你想重现这次已经验证过的 GitHub 快照，并尽量保证编译结果和现在一致，先看[Amigo 固定快照重编译教程](from-github-snapshot.zh-CN.md)。
 
 ## 0. 先看懂仓库
 
@@ -23,6 +24,7 @@
 3. 最后再推 `krux`
 
 更详细的说明请先看[仓库结构与接手说明](repo-structure.zh-CN.md)。
+如果你是来复现这次已经固定好的 Amigo 版本，请优先看[固定快照重编译教程](from-github-snapshot.zh-CN.md)。
 
 ## 准备工作
 

@@ -42,6 +42,8 @@ git submodule update --init --recursive
 4. 回到父仓库，把 `firmware/MaixPy` 的 submodule 指针更新到新提交
 5. 再提交并推送 `krux`
 
+如果你不是要改代码，而是要复现这次已经验证过的 Amigo 固件，请先看[Amigo 固定快照重编译教程](from-github-snapshot.zh-CN.md)。
+
 ## 交接时最容易踩的坑
 
 - 不要把 `sd/` 提交进去，它只是本机模拟器数据
@@ -56,4 +58,5 @@ git submodule update --init --recursive
 1. [README 的中文快速开始](../../../README.md)
 2. [本页：仓库结构与接手说明](repo-structure.zh-CN.md)
 3. [Amigo 迁移计划 / 接手记录](../../amigo-tp-web3-port-plan.zh-CN.md)
-4. [Amigo 固件从源码编译并烧录](from-source.zh-CN.md)
+4. [Amigo 固定快照重编译教程](from-github-snapshot.zh-CN.md)
+5. [Amigo 固件从源码编译并烧录](from-source.zh-CN.md)

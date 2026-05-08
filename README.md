@@ -31,18 +31,20 @@ Krux is an open-source firmware facilitating the creation of Bitcoin signing dev
 1. [Krux 仓库结构与接手说明](docs/getting-started/installing/repo-structure.zh-CN.md)
 2. [Amigo 中文新手入口](docs/getting-started/index.zh-CN.md)
 3. [Amigo 预编译固件中文教程](docs/getting-started/installing/from-pre-built-release.zh-CN.md)
-4. [Amigo 源码编译中文教程](docs/getting-started/installing/from-source.zh-CN.md)
-5. [Amigo 固定快照重编译教程](docs/getting-started/installing/from-github-snapshot.zh-CN.md)
-6. [Amigo 固定快照卡片版](docs/getting-started/installing/from-github-snapshot-quick.zh-CN.md)
-7. [Amigo 商用交付说明](docs/amigo-commercial-release.zh-CN.md)
-8. [Amigo 常见问题](docs/faq.zh-CN.md)
-9. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)
+4. [Amigo 刷机路径图](docs/getting-started/installing/amigo-flash-path.zh-CN.md)
+5. [Amigo 源码编译中文教程](docs/getting-started/installing/from-source.zh-CN.md)
+6. [Amigo 固定快照重编译教程](docs/getting-started/installing/from-github-snapshot.zh-CN.md)
+7. [Amigo 固定快照卡片版](docs/getting-started/installing/from-github-snapshot-quick.zh-CN.md)
+8. [Amigo 商用交付说明](docs/amigo-commercial-release.zh-CN.md)
+9. [Amigo 常见问题](docs/faq.zh-CN.md)
+10. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)
 
 最省事的路径是第 3 条；如果你想先看中文总入口，再点第 2 条。
-如果你要复现这次已经验证过的编译结果，优先看第 5 条。
-如果你只想照着最短步骤快速重编译，先看第 6 条。
-如果你想先看这份固件到底能不能商用、交付范围是什么，先看第 7 条。
-如果你经常被“能不能接智能卡、为什么固件这么小、能不能接 USB 打印机”这些问题困住，先看第 8 条。
+如果你还不确定该点哪一页，先看第 4 条。
+如果你要复现这次已经验证过的编译结果，优先看第 6 条。
+如果你只想照着最短步骤快速重编译，先看第 7 条。
+如果你想先看这份固件到底能不能商用、交付范围是什么，先看第 8 条。
+如果你经常被“能不能接智能卡、为什么固件这么小、能不能接 USB 打印机”这些问题困住，先看第 9 条。
 
 这份备份仓库的主地址是 `https://github.com/akg5188/krux`，子模块 `MaixPy` 也已经单独备份到 `https://github.com/akg5188/MaixPy`。
 

@@ -33,7 +33,7 @@ Krux is an open-source firmware facilitating the creation of Bitcoin signing dev
 3. [Amigo 预编译固件中文教程](docs/getting-started/installing/from-pre-built-release.zh-CN.md)
 4. [Amigo 源码编译中文教程](docs/getting-started/installing/from-source.zh-CN.md)
 5. [Amigo 固定快照重编译教程](docs/getting-started/installing/from-github-snapshot.zh-CN.md)
-6. [Amigo 固定快照极速版](docs/getting-started/installing/from-github-snapshot-quick.zh-CN.md)
+6. [Amigo 固定快照卡片版](docs/getting-started/installing/from-github-snapshot-quick.zh-CN.md)
 7. [Amigo 商用交付说明](docs/amigo-commercial-release.zh-CN.md)
 8. [Amigo 常见问题](docs/faq.zh-CN.md)
 9. [Amigo 迁移计划 / 接手记录](docs/amigo-tp-web3-port-plan.zh-CN.md)

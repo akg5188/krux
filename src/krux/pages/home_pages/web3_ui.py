@@ -20,9 +20,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from .. import ESC_KEY, MENU_CONTINUE, Menu, Page
+from .. import ESC_KEY, MENU_CONTINUE, MENU_SHUTDOWN, Menu, Page
 from ..qr_capture import QRCodeCapture
-from ...display import BOTTOM_PROMPT_LINE
+from ...display import BOTTOM_PROMPT_LINE, DEFAULT_PADDING, FONT_HEIGHT
+from ...themes import theme
 from ...web3 import (
     Web3Error,
     Web3RequestDataType,
@@ -53,8 +54,8 @@ class Web3(Page):
     def web3(self):
         """Handler for the top-level Web3 menu item"""
         submenu_items = [
-            ("连接钱包\nOKX / Bitget / MetaMask", self.connect_wallet),
-            ("扫码签名\n消息 / 交易 / TP 中转", self.scan_and_sign),
+            ("连接钱包\nOKX Bitget MetaMask", self.connect_wallet),
+            ("扫码签名\n消息 交易 TP中转", self.scan_and_sign),
         ]
         submenu = Menu(self.ctx, submenu_items)
         submenu.run_loop()
@@ -66,6 +67,12 @@ class Web3(Page):
             return None
         return wallet.key
 
+    def _verify_sign_pin(self):
+        """Verify the configured Amigo PIN before signing."""
+        from ..boot_lock import BootLockPage
+
+        return BootLockPage(self.ctx).verify_before_signing()
+
     def _display_bundle(self, bundle, title):
         if bundle.pages:
             self.display_qr_codes(bundle.pages, FORMAT_NONE, title)
@@ -74,6 +81,26 @@ class Web3(Page):
             self.display_qr_codes(bundle.ur, FORMAT_UR, title)
             return
         self.display_qr_codes(bundle.text or "", FORMAT_NONE, title)
+
+    def _prompt_sign_request(self, preview):
+        """Show a compact preview without letting long data cover the buttons."""
+        prompt_y = BOTTOM_PROMPT_LINE
+        max_preview_lines = max(3, (prompt_y // FONT_HEIGHT) - 2)
+        preview_lines = self.ctx.display.to_lines(preview, max_preview_lines)
+
+        self.ctx.display.clear()
+        self.ctx.display.draw_hcentered_text(
+            preview_lines,
+            DEFAULT_PADDING,
+            max_lines=max_preview_lines,
+        )
+        self.ctx.display.draw_hcentered_text(
+            "内容已省略" if len(preview_lines) >= max_preview_lines else "",
+            max(prompt_y - FONT_HEIGHT, DEFAULT_PADDING),
+            theme.frame_color,
+            max_lines=1,
+        )
+        return self.prompt("签名此请求?", prompt_y)
 
     def connect_wallet(self):
         """Show profile-specific Web3 connection QRs"""
@@ -115,7 +142,8 @@ class Web3(Page):
         try:
             account = derive_web3_account(wallet_key)
             bundle = build_connect_qr_bundle(wallet_key, wallet_profile=wallet_profile)
-        except Web3Error as exc:
+        except (Web3Error, ValueError) as exc:
+            self.ctx.display.to_portrait()
             self.flash_error(str(exc))
             return MENU_CONTINUE
 
@@ -151,9 +179,13 @@ class Web3(Page):
         elif request.typed_data_json:
             preview += "\n" + self.fit_to_line(request.typed_data_json, "结构化数据: ")
 
-        self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(preview)
-        if not self.prompt("签名此请求?", BOTTOM_PROMPT_LINE):
+        if not self._prompt_sign_request(preview):
+            return MENU_CONTINUE
+
+        pin_result = self._verify_sign_pin()
+        if pin_result == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
+        if not pin_result:
             return MENU_CONTINUE
 
         try:

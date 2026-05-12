@@ -200,7 +200,7 @@ class SettingsPage(Page):
             )
             return MENU_CONTINUE
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
         # Hashes the Tamper Check Code once
         tc_code_bytes = tamper_check_code.encode()
         tc_code_hash = uhashlib_hw.sha256(tc_code_bytes).digest()
@@ -252,7 +252,7 @@ class SettingsPage(Page):
         if Settings().persist.location == SD_PATH:
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                amigo_text("正在检查 SD 卡…", t("Checking for SD card…"))
+                amigo_text("正在检查 SD 卡...", t("Checking for SD card…"))
             )
             try:
                 # Check for SD hot-plug
@@ -260,7 +260,7 @@ class SettingsPage(Page):
                     if store.save_settings():
                         self.flash_text(
                             amigo_text(
-                                "设置已保存到 SD 卡。",
+                                "设置已保存到 SD 卡.",
                                 t("Settings stored on SD card."),
                             ),
                             duration=PERSIST_MSG_TIME,
@@ -268,7 +268,7 @@ class SettingsPage(Page):
             except OSError:
                 self.flash_text(
                     amigo_text(
-                        "未检测到 SD 卡。\n\n更改会一直保留到关机。",
+                        "未检测到 SD 卡.\n\n更改会一直保留到关机.",
                         t("SD card not detected.")
                         + "\n\n"
                         + t("Changes will last until shutdown."),
@@ -280,7 +280,7 @@ class SettingsPage(Page):
             if store.save_settings():
                 self.flash_text(
                     amigo_text(
-                        "设置已保存到内部闪存。",
+                        "设置已保存到内部闪存.",
                         t("Settings stored internally on flash."),
                     ),
                     duration=PERSIST_MSG_TIME,
@@ -325,7 +325,7 @@ class SettingsPage(Page):
             # Case for security settings
             if settings_namespace.namespace == "settings.security":
                 items.append((t("Tamper Check Code"), self.enter_modify_tc_code))
-                items.append(("开机口令锁", self.boot_lock_settings))
+                items.append(("开机密码\n设置/修改", self.boot_lock_settings))
 
             submenu = Menu(self.ctx, items, back_status=back_status)
             index, status = submenu.run_loop()
@@ -476,7 +476,7 @@ class SettingsPage(Page):
                 self.ctx.display.clear()
                 self.ctx.display.draw_centered_text(
                     amigo_text(
-                        "如果更改后屏幕无法正常显示，设备会在 5 秒后自动恢复上一次设置并重启。",
+                        "如果屏幕显示异常, 设备会在 5 秒后恢复上一次设置并重启.",
                         t(
                             "If your device display does not work after this change, "
                             "it will automatically reboot with previous settings after 5 seconds."
@@ -493,7 +493,7 @@ class SettingsPage(Page):
                 self.ctx.display.clear()
                 self.ctx.display.draw_centered_text(
                     amigo_text(
-                        "按“上一页”键保留此设置。",
+                        "按上一页键保留此设置.",
                         t('Press "PREVIOUS" (up arrow) button to keep this setting.'),
                     )
                 )
@@ -532,7 +532,7 @@ class SettingsPage(Page):
                 from ..camera import Camera
 
                 self.ctx.display.clear()
-                self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+                self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
 
                 self.ctx.camera = Camera()
 

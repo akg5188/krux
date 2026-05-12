@@ -32,6 +32,7 @@ BYTE_LEN = 2
 CHAR_LIST_EXCEPT_ASIAN = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !#$%&'()*+,-./:;<=>?@`[\\]^_\"{|}~█₿ ⊚↳«»…"
 DEFAULT_CODEPOINTS = [ord(char) for char in CHAR_LIST_EXCEPT_ASIAN]
 TRANSLATIONS_DIR = "../../i18n/translations"
+EXTRA_WIDE_SOURCE_DIRS = ["../../src"]
 
 JAPANESE_CODEPOINT_MIN = 0x3000  # defined as WIDEFONT_CODEPOINT_MIN in MaixPy
 JAPANESE_CODEPOINT_MAX = 0x30FF
@@ -89,6 +90,33 @@ def hextokff(filename=None, width=None, height=None, wide_glyphs=None):
                     elif wide_glyphs is None:
                         used_codepoints.add(ord(char))
 
+    if wide_glyphs and "zh-CN" in wide_glyphs:
+        for source_dir in EXTRA_WIDE_SOURCE_DIRS:
+            if not os.path.isdir(source_dir):
+                continue
+            for root, _, files in os.walk(source_dir):
+                for filename_source in files:
+                    if not filename_source.endswith(".py"):
+                        continue
+                    file_path = os.path.join(root, filename_source)
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+                        for char in file.read():
+                            if (
+                                JAPANESE_CODEPOINT_MIN
+                                <= ord(char)
+                                <= JAPANESE_CODEPOINT_MAX
+                                or CHINESE_CODEPOINT_MIN
+                                <= ord(char)
+                                <= CHINESE_CODEPOINT_MAX
+                                or KOREAN_CODEPOINT_MIN
+                                <= ord(char)
+                                <= KOREAN_CODEPOINT_MAX
+                                or FULLHALFWIDTH_CODEPOINT_MIN
+                                <= ord(char)
+                                <= FULLHALFWIDTH_CODEPOINT_MAX
+                            ):
+                                used_codepoints.add(ord(char))
+
     with open(filename, "r", encoding="utf-8") as input_file:
         # Read in a hex formatted bitmap font file
         lines = input_file.readlines()
@@ -100,7 +128,8 @@ def hextokff(filename=None, width=None, height=None, wide_glyphs=None):
         for line in lines:
             line = line.rstrip("\n")
             codepoint, glyph = line.split(":")
-            if int(codepoint, 16) not in used_codepoints:
+            codepoint_int = int(codepoint, 16)
+            if codepoint_int not in used_codepoints:
                 continue
 
             total_codepoints += 1

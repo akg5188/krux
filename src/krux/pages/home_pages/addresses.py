@@ -37,6 +37,8 @@ from ...format import format_address
 
 SCAN_ADDRESS_LIMIT = 50
 EXPORT_ADDRESS_LIMIT = SCAN_ADDRESS_LIMIT * 100
+BTC_DERIVATION_PURPOSES = (44, 49, 84, 86)
+EVM_COIN_TYPE = 60
 
 
 class Addresses(Page):
@@ -98,9 +100,9 @@ class Addresses(Page):
             return MENU_CONTINUE
 
         loading_txt = (
-            self._amigo_text("正在加载找零地址…", t("Loading change addresses…"))
+            self._amigo_text("正在加载找零地址...", t("Loading change addresses…"))
             if addr_type == 1
-            else self._amigo_text("正在加载收款地址…", t("Loading receive addresses…"))
+            else self._amigo_text("正在加载收款地址...", t("Loading receive addresses…"))
         )
         max_addresses = self.ctx.display.max_menu_lines() - 3
         address_index = 0
@@ -109,7 +111,7 @@ class Addresses(Page):
             if address_index >= max_addresses:
                 items.append(
                     (
-                        "%d…%d" % (address_index - max_addresses, address_index - 1),
+                        "%d...%d" % (address_index - max_addresses, address_index - 1),
                         lambda: MENU_EXIT,
                     )
                 )
@@ -134,7 +136,7 @@ class Addresses(Page):
 
             items.append(
                 (
-                    "%d…%d" % (address_index, address_index + max_addresses - 1),
+                    "%d...%d" % (address_index, address_index + max_addresses - 1),
                     lambda: MENU_EXIT,
                 )
             )
@@ -193,6 +195,145 @@ class Addresses(Page):
         )
 
         return MENU_CONTINUE
+
+    def show_receive_address_by_index(self):
+        """Capture an address index and display that receive address."""
+        from ..utils import Utils
+
+        utils = Utils(self.ctx)
+        index = ""
+        while index == "":
+            index = utils.capture_index_from_keypad(
+                self._amigo_text("收款地址编号", t("Index")),
+                initial_val=0,
+                range_min=0,
+                range_max=EXPORT_ADDRESS_LIMIT - 1,
+            )
+        if index is None:
+            return MENU_CONTINUE
+
+        try:
+            address = next(
+                self.ctx.wallet.obtain_addresses(index, limit=1, branch_index=0)
+            )
+        except Exception as exc:
+            self.flash_error(str(exc))
+            return MENU_CONTINUE
+
+        title = str(index) + "." + THIN_SPACE + format_address(address)
+        return self.show_address(address, title=title)
+
+    def _default_btc_address_path(self):
+        """Return the current wallet account path extended to address index 0."""
+        try:
+            derivation = self.ctx.wallet.key.derivation
+        except Exception:
+            derivation = ""
+        if not derivation:
+            derivation = "m/84h/0h/0h"
+        return derivation + "/0/0"
+
+    def show_address_by_derivation_path(self):
+        """Capture a full derivation path and show the derived BTC or EVM address."""
+        return self._show_derived_address_by_path(self._default_btc_address_path())
+
+    def _capture_derivation_path(self, default_path):
+        from ..wallet_settings import DERIVATION_KEYPAD
+
+        derivation_path = self.capture_from_keypad(
+            self._amigo_text("派生路径", t("Derivation Path")),
+            [DERIVATION_KEYPAD],
+            starting_buffer=default_path.replace("'", "h"),
+            delete_key_fn=lambda value: value[:-1] if len(value) > 1 else value,
+        )
+        if derivation_path == ESC_KEY:
+            return None
+        return str(derivation_path or "").strip().replace("'", "h")
+
+    def _path_parts(self, derivation_path):
+        parts = [part for part in derivation_path.split("/") if part]
+        if not parts or parts[0] != "m":
+            raise ValueError("派生路径必须从 m/ 开始")
+        if len(parts) < 6:
+            raise ValueError("请输入完整地址路径\n例如 m/84h/0h/0h/0/0")
+        return parts
+
+    @staticmethod
+    def _path_node_value(node):
+        value = node[:-1] if node and node[-1] in "'hH" else node
+        if not value.isdigit():
+            raise ValueError("派生路径片段无效: %s" % node)
+        return int(value)
+
+    @staticmethod
+    def _btc_address_type_label(purpose, coin_type):
+        network = "主网" if coin_type == 0 else "测试网"
+        purpose_labels = {
+            44: "Legacy P2PKH",
+            49: "Nested SegWit P2SH-P2WPKH",
+            84: "Native SegWit P2WPKH",
+            86: "Taproot P2TR",
+        }
+        return "BTC %s %s" % (network, purpose_labels[purpose])
+
+    def derive_address_from_path(self, derivation_path):
+        """Derive a displayable wallet address from a full BTC or EVM path."""
+        from embit import bip32
+        from .sign_message_ui import SignMessage
+        from ...web3 import derive_web3_address, ethereum_checksum_address
+
+        parts = self._path_parts(derivation_path)
+        # Parse once with embit too, so invalid BIP32 ranges fail before display.
+        bip32.parse_path(derivation_path)
+
+        purpose = self._path_node_value(parts[1])
+        coin_type = self._path_node_value(parts[2])
+
+        if coin_type == EVM_COIN_TYPE:
+            address = derive_web3_address(
+                self.ctx.wallet.key,
+                derivation_path,
+                checksum=False,
+            )
+            return "EVM 以太坊地址", ethereum_checksum_address(address)
+
+        if coin_type in (0, 1) and purpose in BTC_DERIVATION_PURPOSES:
+            address = SignMessage(self.ctx).get_bitcoin_address(derivation_path)
+            return self._btc_address_type_label(purpose, coin_type), address
+
+        raise ValueError("暂只支持 BTC 或 EVM 地址路径")
+
+    def _derived_address_preview(self, derivation_path, address_type, address):
+        return "\n".join(
+            [
+                "类型: " + address_type,
+                "路径: " + derivation_path,
+                "地址:",
+                address,
+            ]
+        )
+
+    def _show_derived_address_by_path(self, default_path):
+        derivation_path = self._capture_derivation_path(default_path)
+        if derivation_path is None:
+            return MENU_CONTINUE
+        try:
+            address_type, address = self.derive_address_from_path(derivation_path)
+        except Exception as exc:
+            self.flash_error(str(exc))
+            return MENU_CONTINUE
+
+        self.ctx.display.clear()
+        self.ctx.display.draw_centered_text(
+            self._derived_address_preview(derivation_path, address_type, address),
+            highlight_prefix=":",
+        )
+        if not self.prompt("继续?", BOTTOM_PROMPT_LINE):
+            return MENU_CONTINUE
+        return self.show_address(
+            address,
+            title="%s\n%s" % (address_type, self.fit_to_line(derivation_path)),
+        )
 
     def _receive_change_menu(self, callback):
         receive_label = self._amigo_text("收款地址", t("Receive"))
@@ -254,7 +395,7 @@ class Addresses(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            self._amigo_text("处理中…", t("Processing…"))
+            self._amigo_text("处理中...", t("Processing…"))
         )
 
         try:
@@ -270,7 +411,7 @@ class Addresses(Page):
                         if i % SCAN_ADDRESS_LIMIT == 0:
                             self.ctx.display.clear()
                             self.ctx.display.draw_centered_text(
-                                self._amigo_text("处理中…", t("Processing…"))
+                                self._amigo_text("处理中...", t("Processing…"))
                                 + "\n\n%d%%" % int((i - start_address) / quantity * 100)
                             )
                             wdt.feed()
@@ -282,7 +423,7 @@ class Addresses(Page):
                 )
         except OSError:
             self.flash_text(
-                self._amigo_text("未检测到 SD 卡。", t("SD card not detected."))
+                self._amigo_text("未检测到 SD 卡.", t("SD card not detected."))
             )
 
     def _scan_highlight_addr(self, result_message):
@@ -357,10 +498,10 @@ class Addresses(Page):
                 return MENU_CONTINUE
 
             checking_match_txt = self._amigo_text(
-                "正在核对地址… %d-%d", t("Verifying…") + " " + t("%d to %d")
+                "正在核对地址... %d-%d", t("Verifying…") + " " + t("%d to %d")
             )
             checked_no_match_txt = self._amigo_text(
-                "已检查 %d 个地址，没找到匹配项。",
+                "已检查 %d 个地址, 没找到匹配项.",
                 t("Checked %d addresses with no matches."),
             )
             is_valid_txt = self._amigo_text(

@@ -60,21 +60,25 @@ class MnemonicLoader(Page):
     def load_key(self):
         """Handler for the 'load mnemonic' menu item"""
         if kboard.is_amigo:
-            via_camera = "摄像头导入\n二维码 / 位图"
-            via_manual = "手动输入\n单词 / 编号 / 钢板"
-            from_storage = "加密助记词\n从已保存记录加载"
+            via_camera = "摄像头导入\n二维码和点阵"
+            via_manual = "手动输入\n单词 编号 钢板"
+            menu_items = [
+                (via_camera, self.load_key_from_camera),
+                (via_manual, self.load_key_from_manual_input),
+            ]
         else:
             via_camera = t("Via Camera")
             via_manual = t("Via Manual Input")
             from_storage = t("From Storage")
-
-        submenu = Menu(
-            self.ctx,
-            [
+            menu_items = [
                 (via_camera, self.load_key_from_camera),
                 (via_manual, self.load_key_from_manual_input),
                 (from_storage, self.load_mnemonic_from_storage),
-            ],
+            ]
+
+        submenu = Menu(
+            self.ctx,
+            menu_items,
         )
         index, status = submenu.run_loop()
         if index == submenu.back_index:
@@ -84,7 +88,7 @@ class MnemonicLoader(Page):
     def load_key_from_camera(self):
         """Handler for the 'load mnemonic'>'via camera' menu item"""
         if kboard.is_amigo:
-            qr_label = "二维码导入\n助记词二维码 / 文本"
+            qr_label = "二维码导入\n助记词码或文本"
             tinyseed_label = "点阵备份\n相机扫描"
             onekey_label = "金属卡备份\nOneKey KeyTag"
             binary_label = "二进制网格\n位图导入"
@@ -121,7 +125,7 @@ class MnemonicLoader(Page):
         if kboard.is_amigo:
             words_label = "助记词输入\n逐词输入"
             numbers_label = "助记词编号\n0-2047"
-            steel_label = "钢板二次还原\n默认 / 自定义"
+            steel_label = "钢板二次还原\n默认或自定义"
             tinyseed_label = "点阵备份\n手动输入"
             stackbit_label = "1248 打孔板\n手动输入"
         else:
@@ -161,7 +165,7 @@ class MnemonicLoader(Page):
             self.ctx,
             [
                 (
-                    amigo_text("默认还原\n-8 -7 -6…", "Default Restore"),
+                    amigo_text("默认还原\n-8 -7 -6 ...", "Default Restore"),
                     self.load_key_from_secondary_steel_default,
                 ),
                 (
@@ -419,15 +423,15 @@ class MnemonicLoader(Page):
             return MENU_CONTINUE
 
         intro = amigo_text(
-            "把打孔点涂黑，方便摄像头识别。",
+            "把打孔点涂黑, 方便摄像头识别.",
             t("Paint punched dots black so they can be detected."),
         )
         intro += " " + amigo_text(
-            "请使用黑色背景。",
+            "请使用黑色背景.",
             t("Use a black background surface."),
         )
         intro += " " + amigo_text(
-            "请把摄像头和备份板对齐。",
+            "请把摄像头和备份板对齐.",
             t("Align camera and backup plate properly."),
         )
         self.ctx.display.draw_hcentered_text(intro)
@@ -530,7 +534,7 @@ class MnemonicLoader(Page):
                         self.ctx.display.clear()
                         self.ctx.display.draw_centered_text(
                             amigo_text(
-                                "留空即可由 Krux 自动选择最后一个词。",
+                                "留空即可由 Krux 自动选择最后一个词.",
                                 t("Leave blank if you'd like Krux to pick a valid final word"),
                             )
                         )

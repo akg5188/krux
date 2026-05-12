@@ -25,7 +25,7 @@ import binascii
 import ujson as json
 import urandom as random
 
-from . import DIGITS, ESC_KEY, MENU_CONTINUE, Menu, Page
+from . import DIGITS, ESC_KEY, MENU_CONTINUE, MENU_SHUTDOWN, Menu, Page
 from ..themes import theme
 
 BOOT_LOCK_PATH = "/flash/boot_lock.json"
@@ -34,6 +34,7 @@ BOOT_LOCK_MIN_LEN = 4
 BOOT_LOCK_MAX_LEN = 12
 BOOT_LOCK_ITERATIONS = 100000
 BOOT_LOCK_MAX_ATTEMPTS = 5
+BOOT_LOCK_SIGN_ATTEMPTS = 3
 BOOT_LOCK_CONTEXT = b"krux-amigo-boot-lock-v1"
 BOOT_LOCK_MAX_FILE_SIZE = 512
 
@@ -212,6 +213,40 @@ class BootLockPage(Page):
         self.flash_error("开机口令错误次数过多\n设备即将关机")
         return False
 
+    def _verify_pin_gate(self, title, success_text, require_configured=False):
+        """Verify the configured PIN for a sensitive action."""
+        if not self.store.is_configured():
+            if require_configured:
+                self.flash_error("请先设置开机口令\n才能显示助记词")
+                return False
+            return True
+        attempts = 0
+        while attempts < BOOT_LOCK_SIGN_ATTEMPTS:
+            pin = self._capture_pin(title)
+            if pin == ESC_KEY:
+                return False
+            if self.store.verify_pin(pin):
+                self.flash_text(success_text, theme.go_color)
+                return True
+            attempts += 1
+            remaining = BOOT_LOCK_SIGN_ATTEMPTS - attempts
+            if remaining:
+                self.flash_error("口令错误\n还可重试 %d 次" % remaining)
+        self.flash_error("口令错误 3 次\n设备即将关机")
+        return MENU_SHUTDOWN
+
+    def verify_before_signing(self):
+        """Require the configured PIN before signing. Returns MENU_SHUTDOWN on lockout."""
+        return self._verify_pin_gate("签名前验证", "签名前验证通过")
+
+    def verify_before_secret_access(self):
+        """Require PIN before temporarily showing RAM-only mnemonic material."""
+        return self._verify_pin_gate(
+            "助记词验证",
+            "验证通过",
+            require_configured=True,
+        )
+
     def manage(self):
         """Settings entry for enabling, changing, and disabling the boot lock."""
         items = [("功能说明", self.show_info)]
@@ -230,9 +265,9 @@ class BootLockPage(Page):
 
     def show_info(self):
         self.flash_text(
-            "开机口令会在进入主菜单前拦截。\n"
-            "它保存在本机闪存中，适合防误用。\n"
-            "它不是硬件安全芯片。"
+            "开机口令会在进入主菜单前拦截.\n"
+            "它保存在本机闪存中, 适合防误用.\n"
+            "它不是硬件安全芯片."
         )
         return MENU_CONTINUE
 
@@ -299,6 +334,6 @@ class BootLockPage(Page):
                     return ESC_KEY
                 self.flash_error("必须输入开机口令")
                 continue
-            if len(captured) <= BOOT_LOCK_MAX_LEN:
+            if BootLockStore._valid_pin(captured):
                 return captured
-            self.flash_error("口令最多 12 位")
+            self.flash_error("口令必须是 4 到 12 位数字")

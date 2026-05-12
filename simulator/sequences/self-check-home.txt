@@ -2,9 +2,8 @@ include _load-12-word-mnemonic.txt
 
 screenshot self-check-home-entry.png
 
-# Move to the home self-check entry
-x3 press BUTTON_B
-press BUTTON_A
+# Move to "树莓派功能 -> 固件自检"
+include _open-pi-self-check.txt
 
 screenshot self-check-home-menu.png
 

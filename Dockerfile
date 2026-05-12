@@ -133,6 +133,8 @@ RUN cp -r vendor/embit/src/embit "${DEVICE_BUILTIN}"
 COPY ./src src
 # rename boot.py
 RUN mv src/boot.py src/_boot.py
+# remove desktop-only pytest fallback modules before freezing MaixPy firmware
+RUN rm -f src/board.py src/ucryptolib.py src/ujson.py src/urandom.py
 # clean it
 RUN find src -type d -name '__pycache__' -exec rm -rv {} + -depth
 # copy it to DEVICE_BUILTIN

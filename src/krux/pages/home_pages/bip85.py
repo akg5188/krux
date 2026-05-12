@@ -96,6 +96,8 @@ class Bip85(Page):
             from ...wallet import Wallet
 
             self.ctx.wallet = Wallet(key)
+            if kboard.is_amigo:
+                key.forget_plaintext_secret()
             self.flash_text(
                 amigo_text(
                     "%s 已加载" % key.fingerprint_hex_str(True),

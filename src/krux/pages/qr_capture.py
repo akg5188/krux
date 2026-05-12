@@ -142,7 +142,7 @@ class QRCodeCapture(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            amigo_text("正在加载摄像头…", t("Loading Camera…"))
+            amigo_text("正在加载摄像头...", t("Loading Camera…"))
         )
         self.ctx.camera.initialize_run()
 
@@ -160,7 +160,7 @@ class QRCodeCapture(Page):
             MINIMAL_PADDING if not kboard.is_amigo else BOTTOM_LINE - FONT_HEIGHT * 2
         )
         title_lines = self.ctx.display.draw_hcentered_text(
-            amigo_text("按 PAGE 键\n切换模式", t("Press PAGE to toggle mode")),
+            amigo_text("按侧键切换模式\n点屏或返回键退出", t("Press PAGE to toggle mode")),
             offset_y,
         )
         self.ctx.display.to_landscape()
@@ -169,70 +169,73 @@ class QRCodeCapture(Page):
         message_end_time = start_time + MESSAGE_DISPLAY_PERIOD
         first_frame = True
 
-        while True:
-            wdt.feed()
+        try:
+            while True:
+                wdt.feed()
 
-            if self.ctx.light:
-                self.light_control()
-            elif self.ctx.input.enter_event():
-                break
-
-            # Anti-glare / zoom / normal mode
-            page_prev_event = self.ctx.input.page_prev_event()
-            if self.ctx.input.page_event() or (kboard.is_yahboom and page_prev_event):
-                if self.ctx.camera.has_mode_control():
-                    self.mode_control()
-                else:
+                if self.ctx.light:
+                    self.light_control()
+                elif self.ctx.input.enter_event():
                     break
 
-            # Exit the capture loop with TOUCH or PAGE_PREV (except yahboom)
-            if self.ctx.input.touch_event() or (
-                not kboard.is_yahboom and page_prev_event
-            ):
-                break
-
-            if new_part is not None and new_part != previous_part:
-                if parser.format == FORMAT_UR:
-                    self.update_progress_ur(parser, theme.highlight_color)
-                    ur_highlighted = True
-                    previous_part = None
-                else:
-                    self.update_progress_other(parser, new_part, previous_part)
-                    previous_part = new_part
-                new_part = None
-            elif ur_highlighted:
-                self.update_progress_ur(parser, theme.fg_color)
-                ur_highlighted = False
-
-            img = self.ctx.camera.snapshot()
-            if time.ticks_ms() < message_end_time:
-                self.ctx.display.render_image(img, title_lines=title_lines)
-            else:
-                self.ctx.display.render_image(img)
-
-            res = img.find_qrcodes(find_inverted=first_frame)
-            if res:
-                first_frame = False
-                new_part = parser.parse(res[0].payload())
-
-                if (
-                    parser.format == FORMAT_UR
-                    and parser.processed_parts_count() > prev_parsed_count
+                # Anti-glare / zoom / normal mode
+                page_prev_event = self.ctx.input.page_prev_event()
+                if self.ctx.input.page_event() or (
+                    kboard.is_yahboom and page_prev_event
                 ):
-                    prev_parsed_count = parser.processed_parts_count()
-                    new_part = True
+                    if self.ctx.camera.has_mode_control():
+                        self.mode_control()
+                    else:
+                        break
+
+                # Exit the capture loop with TOUCH or PAGE_PREV (except yahboom)
+                if self.ctx.input.touch_event() or (
+                    not kboard.is_yahboom and page_prev_event
+                ):
+                    break
+
+                if new_part is not None and new_part != previous_part:
+                    if parser.format == FORMAT_UR:
+                        self.update_progress_ur(parser, theme.highlight_color)
+                        ur_highlighted = True
+                        previous_part = None
+                    else:
+                        self.update_progress_other(parser, new_part, previous_part)
+                        previous_part = new_part
+                    new_part = None
+                elif ur_highlighted:
+                    self.update_progress_ur(parser, theme.fg_color)
+                    ur_highlighted = False
+
+                img = self.ctx.camera.snapshot()
+                if time.ticks_ms() < message_end_time:
+                    self.ctx.display.render_image(img, title_lines=title_lines)
+                else:
+                    self.ctx.display.render_image(img)
+
+                res = img.find_qrcodes(find_inverted=first_frame)
+                if res:
+                    first_frame = False
+                    new_part = parser.parse(res[0].payload())
+
+                    if (
+                        parser.format == FORMAT_UR
+                        and parser.processed_parts_count() > prev_parsed_count
+                    ):
+                        prev_parsed_count = parser.processed_parts_count()
+                        new_part = True
+
+                if parser.is_complete():
+                    break
 
             if parser.is_complete():
-                break
-
-        self.ctx.camera.stop_sensor()
-        if self.ctx.light:
-            self.ctx.light.turn_off()
-        self.ctx.display.to_portrait()
-
-        if parser.is_complete():
-            return qr_str_to_bytes(parser.result()), parser.format
-        return None, None
+                return qr_str_to_bytes(parser.result()), parser.format
+            return None, None
+        finally:
+            self.ctx.camera.stop_sensor()
+            if self.ctx.light:
+                self.ctx.light.turn_off()
+            self.ctx.display.to_portrait()
 
 
 def qr_str_to_bytes(qr_result):

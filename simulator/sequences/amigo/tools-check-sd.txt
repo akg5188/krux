@@ -1,0 +1,14 @@
+include _open-tools.txt
+
+screenshot tools-options.png
+
+# Device tests.
+press BUTTON_B
+press BUTTON_A
+
+screenshot device-tests-options.png
+
+# Check SD Card.
+press BUTTON_A
+
+screenshot check-sd-card.png

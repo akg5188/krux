@@ -1,0 +1,6 @@
+include _wait-for-logo.txt
+
+# The simulator auto-inserts the first activation press at sequence start.
+# Amigo login menu index 5 is Firmware Self-check.
+x5 press BUTTON_B
+press BUTTON_A

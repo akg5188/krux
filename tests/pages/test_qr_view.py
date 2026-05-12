@@ -364,7 +364,7 @@ def test_save_bmp_image_no_sd_card(amigo, mocker):
 
     qr_viewer = SeedQRView(ctx, data=TEST_QR_CODE, title="Test QR Code")
     qr_viewer.save_bmp_image(TEST_TITLE, TEST_DATA_QR_SIZE_FRAMED * 2)
-    flash_text.assert_called_once_with(qr_viewer, t("SD card not detected."))
+    flash_text.assert_called_once_with(qr_viewer, "未检测到 SD 卡.")
 
 
 def test_save_bmp_image_esc_key(amigo, mocker, mocker_save_file_esc):

@@ -40,9 +40,9 @@ class DeviceTests(Page):
     def __init__(self, ctx):
         if kboard.is_amigo:
             menu_items = [
-                ("检查 SD 卡\n容量 / 浏览", self.sd_check),
+                ("检查 SD 卡\n容量和浏览", self.sd_check),
                 ("打印测试二维码\n验证打印机", self.print_test),
-                ("测试套件\n单元测试 / 摘要", self.test_suite),
+                ("测试套件\n单元测试摘要", self.test_suite),
             ]
         else:
             menu_items = [
@@ -76,7 +76,7 @@ class DeviceTests(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            amigo_text("正在检查 SD 卡…", t("Checking for SD card…"))
+            amigo_text("正在检查 SD 卡...", t("Checking for SD card…"))
         )
         try:
             # Check for SD hot-plug
@@ -133,7 +133,7 @@ class DeviceTests(Page):
                     )
         except OSError:
             self.flash_error(
-                amigo_text("未检测到 SD 卡。", t("SD card not detected."))
+                amigo_text("未检测到 SD 卡.", t("SD card not detected."))
             )
 
         return MENU_CONTINUE
@@ -176,7 +176,7 @@ class DeviceTests(Page):
             for idx, test in enumerate(all_tests):
                 self.ctx.display.draw_centered_text(" " * chars_per_line)  #
                 self.ctx.display.draw_centered_text(
-                    amigo_text("检测中…", t("Processing…"))
+                    amigo_text("检测中...", t("Processing…"))
                     + " {}/{}".format(idx + 1, len(all_tests))
                 )
 
@@ -282,7 +282,7 @@ class DeviceTests(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            amigo_text("处理中…", t("Processing…")) + " " + test.__name__
+            amigo_text("处理中...", t("Processing…")) + " " + test.__name__
         )
         success = False
         try:

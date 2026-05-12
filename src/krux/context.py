@@ -39,16 +39,53 @@ class Context:
         self.light = Light() if kboard.has_light else None
         self.power_manager = None
         self.wallet = None
+        self.wallet_slots = []
+        self.wallet_secrets = {}
         self.tc_code_enabled = False
 
     def clear(self):
         """Clears all sensitive data from the context, resetting it"""
         self.wallet = None
+        self.wallet_slots = []
+        self.wallet_secrets = {}
         gc.collect()
 
     def is_logged_in(self):
         """Returns True if user is logged-in with private key material"""
         return bool(self.wallet is not None and self.wallet.key)
+
+    def _wallet_secret_id(self, wallet):
+        """Return a stable in-memory key for the current wallet secret."""
+        try:
+            return wallet.key.fingerprint_hex_str(False)
+        except Exception:
+            return None
+
+    def remember_wallet(self, wallet, mnemonic=None, passphrase=None):
+        """Keep an in-memory wallet slot for SeedSigner-style seed switching."""
+        if wallet is None or wallet.key is None:
+            return
+        secret_id = self._wallet_secret_id(wallet)
+        if secret_id:
+            if mnemonic is None:
+                mnemonic = getattr(wallet.key, "mnemonic", None)
+            if passphrase is None:
+                passphrase = getattr(wallet.key, "passphrase", None)
+            if mnemonic:
+                self.wallet_secrets[secret_id] = (mnemonic, passphrase or "")
+        for index, saved_wallet in enumerate(self.wallet_slots):
+            saved_id = self._wallet_secret_id(saved_wallet)
+            if (secret_id and saved_id == secret_id) or saved_wallet.key == wallet.key:
+                self.wallet_slots[index] = wallet
+                return
+        self.wallet_slots.append(wallet)
+
+    def secret_for_wallet(self, wallet):
+        """Return the RAM-only mnemonic/passphrase tuple for a wallet, if present."""
+        secret_id = self._wallet_secret_id(wallet)
+        if not secret_id:
+            return None, None
+        return self.wallet_secrets.get(secret_id, (None, None))
 
 
 ctx = Context()  # Singleton instance

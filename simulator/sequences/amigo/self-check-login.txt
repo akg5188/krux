@@ -1,0 +1,18 @@
+include _wait-for-logo.txt
+
+screenshot self-check-login-menu-entry.png
+
+include _activate-buttons.txt
+
+# Amigo login menu index 5 is Firmware Self-check.
+x5 press BUTTON_B
+press BUTTON_A
+
+screenshot self-check-login-menu.png
+
+# Open status overview.
+press BUTTON_A
+
+screenshot self-check-login-status.png
+
+press BUTTON_A

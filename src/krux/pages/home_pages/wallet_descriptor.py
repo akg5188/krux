@@ -75,7 +75,7 @@ class WalletDescriptor(Page):
                 return self._load_wallet()
         elif not self.ctx.wallet.is_loaded():
             text = amigo_text(
-                "未找到钱包描述符。",
+                "未找到钱包描述符.",
                 t("Wallet output descriptor not found."),
             )
             self.ctx.display.draw_centered_text(text)
@@ -174,7 +174,7 @@ class WalletDescriptor(Page):
             return None, None, False
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
         if wallet_data is None:
             # Camera or SD card loading failed!
             self.flash_error(t("Failed to load"))
@@ -306,6 +306,11 @@ class WalletDescriptor(Page):
         ):
             return None, None
 
+        if not self.ctx.wallet.key.mnemonic:
+            error = ValueError("无状态模式下无法重新派生\n请重新导入并选择钱包类型")
+            self.flash_error(str(error))
+            return None, error
+
         # Re-derive key with correct policy type, script type, and network
         updated_key = Key(
             self.ctx.wallet.key.mnemonic,
@@ -375,7 +380,7 @@ class WalletDescriptor(Page):
         if not wallet.has_change_addr():
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
-                amigo_text("无法确认找零地址。", t("Could not determine change address.")),
+                amigo_text("无法确认找零地址.", t("Could not determine change address.")),
                 theme.error_color,
             )
             if not self.prompt(

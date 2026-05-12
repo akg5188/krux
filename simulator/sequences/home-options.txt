@@ -2,8 +2,7 @@ include _load-12-word-mnemonic_b.txt
 
 screenshot home-options.png
 
-press BUTTON_B
-press BUTTON_A
+include _open-pi-mnemonic-tools.txt
 
 screenshot mnemonic-tools-menu.png
 

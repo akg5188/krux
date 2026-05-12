@@ -1,0 +1,21 @@
+include _open-tools.txt
+
+# Flash Tools.
+x4 press BUTTON_B
+press BUTTON_A
+
+screenshot flash-tools.png
+
+# Flash Map.
+press BUTTON_A
+
+# Wait generation of the map.
+wait 5
+
+# Back.
+press BUTTON_A
+
+# Erase user's data.
+x2 press BUTTON_B
+press BUTTON_A
+screenshot erase-data.png

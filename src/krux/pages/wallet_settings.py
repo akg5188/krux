@@ -110,8 +110,8 @@ class PassphraseEditor(Page):
                 self.ctx.display.clear()
                 self.ctx.display.draw_hcentered_text(
                     amigo_text(
-                        "密码短语含非 ASCII 字符。\n"
-                        "Krux 不能保证其他钱包会派生出相同密钥。",
+                        "密码短语含非 ASCII 字符.\n"
+                        "Krux 不能保证其他钱包会派生出相同密钥.",
                         t(
                             "Non-ASCII characters were detected in your passphrase. "
                             "Krux cannot guarantee that other wallets will derive the "

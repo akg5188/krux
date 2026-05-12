@@ -1,0 +1,7 @@
+include _wait-for-logo.txt
+
+# Amigo login menu uses 5 large touch cards per page.
+# The simulator auto-inserts the first activation press at sequence start.
+# Index 4 is Offline Tools.
+x4 press BUTTON_B
+press BUTTON_A

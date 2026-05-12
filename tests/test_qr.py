@@ -204,6 +204,43 @@ def test_to_qr_codes(mocker, m5stickv, tdata):
         assert len(codes) == expected_parts
 
 
+def test_to_qr_codes_uses_each_pre_split_page(mocker, m5stickv):
+    from krux.qr import FORMAT_NONE, to_qr_codes
+    import krux.qr as qr
+
+    encoded_payloads = []
+
+    def fake_encode(payload):
+        encoded_payloads.append(payload)
+        return "encoded-{}".format(len(encoded_payloads))
+
+    mocker.patch.object(qr.qrcode, "encode", side_effect=fake_encode)
+
+    code_generator = to_qr_codes(("UR:ONE", "UR:TWO"), 320, FORMAT_NONE)
+
+    code, total = next(code_generator)
+    assert code == "encoded-1"
+    assert total == 2
+
+    code, total = next(code_generator)
+    assert code == "encoded-2"
+    assert total == 2
+
+    code, total = next(code_generator)
+    assert code == "encoded-3"
+    assert total == 2
+
+    assert encoded_payloads == ["UR:ONE", "UR:TWO", "UR:ONE"]
+    assert not any(isinstance(payload, (list, tuple)) for payload in encoded_payloads)
+
+
+def test_to_qr_codes_rejects_invalid_pre_split_page(mocker, m5stickv):
+    from krux.qr import FORMAT_NONE, to_qr_codes
+
+    with pytest.raises(ValueError, match="QR page must be text or bytes"):
+        next(to_qr_codes([("UR:ONE",)], 320, FORMAT_NONE))
+
+
 def test_detect_plaintext_qr(mocker, m5stickv):
     from krux.qr import detect_format
 

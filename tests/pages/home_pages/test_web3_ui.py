@@ -11,12 +11,105 @@ def test_home_menu_includes_web3_entry(mocker, amigo):
     home = Home(ctx)
     labels = [name for name, _ in home.menu.menu]
 
-    assert labels[:4] == [
-        "扫码签名\n比特币 / 链上 / 消息",
-        "助记词工具\n备份 / BIP85 / 钢板",
-        "连接钱包\n公钥 / 地址 / 描述符",
-        "固件自检\n设备 / 触摸 / SD 卡",
+    assert labels[:6] == [
+        "备份助记词",
+        "扩展公钥",
+        "钱包",
+        "地址",
+        "签名",
+        "SeedSigner",
     ]
+    assert "开机密码" not in labels
+    assert labels[-1] == "关机"
+
+
+def test_home_seed_signer_menu_shows_signing_and_wallet_connection(mocker, amigo):
+    from krux.pages.home_pages.home import Home
+
+    ctx = create_ctx(mocker, None)
+    home = Home(ctx)
+    menu_mock = mocker.patch("krux.pages.home_pages.home.Menu")
+    menu_mock.return_value.run_loop.return_value = None
+
+    home.raspberry_pi_features()
+
+    menu_items = menu_mock.call_args.args[1]
+    assert [item[0] for item in menu_items] == [
+        "扫码签名",
+        "助记词工具",
+        "连接钱包",
+        "固件自检",
+    ]
+    assert [item[1].__name__ for item in menu_items] == [
+        "signing_center",
+        "mnemonic_center",
+        "connect_wallet_center",
+        "self_check",
+    ]
+
+
+def test_home_seed_signer_btc_wallet_connection_menu(mocker, amigo):
+    from krux.pages.home_pages.home import Home
+
+    ctx = create_ctx(mocker, None)
+    home = Home(ctx)
+    menu_mock = mocker.patch("krux.pages.home_pages.home.Menu")
+    menu_mock.return_value.run_loop.return_value = None
+
+    home.btc_wallet_export_center()
+
+    menu_items = menu_mock.call_args.args[1]
+    assert [item[0] for item in menu_items] == [
+        "扩展公钥\nxpub zpub QR",
+        "地址核对\n收款 找零 扫码",
+        "钱包描述符\n多签 迷你脚本",
+        "按编号收款地址\n输入派生编号",
+    ]
+
+
+def test_home_mnemonic_center_includes_multi_mnemonic_menu(mocker, amigo):
+    from krux.pages.home_pages.home import Home
+
+    ctx = create_ctx(mocker, None)
+    home = Home(ctx)
+    menu_mock = mocker.patch("krux.pages.home_pages.home.Menu")
+    menu_mock.return_value.run_loop.return_value = None
+
+    home.mnemonic_center()
+
+    menu_items = menu_mock.call_args.args[1]
+    labels = [item[0] for item in menu_items]
+    handlers = {
+        item[0]: item[1].__name__ if item[1] is not None else None
+        for item in menu_items
+    }
+
+    assert "任意路径\nBTC/EVM 地址" in labels
+    assert handlers["任意路径\nBTC/EVM 地址"] == "derived_address_by_path"
+    assert "多助记词\n加载或切换当前组" in labels
+    assert handlers["多助记词\n加载或切换当前组"] == "seed_slots_menu"
+
+
+def test_home_mnemonic_center_enables_backup_from_ram_secret(mocker, amigo):
+    from krux.pages.home_pages.home import Home
+
+    wallet = make_wallet()
+    mnemonic = wallet.key.mnemonic
+    wallet.key.forget_plaintext_secret()
+    ctx = create_ctx(mocker, None, wallet)
+    ctx.secret_for_wallet = mocker.MagicMock(return_value=(mnemonic, ""))
+    home = Home(ctx)
+    menu_mock = mocker.patch("krux.pages.home_pages.home.Menu")
+    menu_mock.return_value.run_loop.return_value = None
+
+    home.mnemonic_center()
+
+    handlers = {
+        item[0]: item[1].__name__ if item[1] is not None else None
+        for item in menu_mock.call_args.args[1]
+    }
+    assert handlers["备份核对助记词\n二维码 钢板 原始熵"] == "unlocked_backup_mnemonic"
+    assert handlers["助记词异或\n拆分或合并助记词"] == "unlocked_mnemonic_xor"
 
 
 def test_web3_submenu_items(mocker, amigo):
@@ -32,8 +125,8 @@ def test_web3_submenu_items(mocker, amigo):
     assert menu_mock.call_count == 1
     menu_items = menu_mock.call_args.args[1]
     assert [item[0] for item in menu_items] == [
-        "连接钱包\nOKX / Bitget / MetaMask",
-        "扫码签名\n消息 / 交易 / TP 中转",
+        "连接钱包\nOKX Bitget MetaMask",
+        "扫码签名\n消息 交易 TP中转",
     ]
     assert [item[1].__name__ for item in menu_items] == [
         "connect_wallet",
@@ -68,6 +161,8 @@ def test_web3_connect_wallet_flow(mocker, amigo):
         ("okx", "UR:CRYPTO-MULTI-ACCOUNTS/", "OKX 钱包", 2),
         ("bitget", "UR:CRYPTO-MULTI-ACCOUNTS/", "Bitget 钱包", 1),
         ("metamask", "UR:CRYPTO-HDKEY/", "MetaMask", 1),
+        ("rabby", "UR:CRYPTO-HDKEY/", "Rabby", 1),
+        ("tokenpocket", "0x", "TokenPocket", 1),
     ],
 )
 def test_web3_connect_wallet_profile_flow(
@@ -88,6 +183,7 @@ def test_web3_connect_wallet_profile_flow(
     qr_pages, qr_format, title = display_mock.call_args.args
     assert isinstance(qr_pages, list)
     assert len(qr_pages) >= min_pages
+    assert all(isinstance(page, str) for page in qr_pages)
     assert qr_pages[0].startswith(expected_prefix)
     assert qr_format == FORMAT_NONE
     assert title == expected_title
@@ -122,6 +218,7 @@ def test_web3_scan_and_sign_flow(mocker, amigo):
 
     display_mock.assert_called_once()
     response_pages, qr_format, title = display_mock.call_args.args
+    assert all(isinstance(page, str) for page in response_pages)
     assert response_pages[0].startswith("tp:personalSignSignature-")
     assert qr_format == FORMAT_NONE
     assert title == "消息签名结果"
@@ -162,6 +259,7 @@ def test_web3_scan_and_sign_relay_flow(mocker, amigo):
 
     display_mock.assert_called_once()
     response_pages, qr_format, title = display_mock.call_args.args
+    assert all(isinstance(page, str) for page in response_pages)
     assert response_pages[0].startswith("tp:personalSignSignature-")
     assert qr_format == FORMAT_NONE
     assert title == "消息签名结果"
@@ -229,6 +327,7 @@ def test_web3_scan_and_sign_transaction_flow(mocker, amigo, tx_data, expected_ti
 
     display_mock.assert_called_once()
     response_pages, qr_format, title = display_mock.call_args.args
+    assert all(isinstance(page, str) for page in response_pages)
     assert response_pages[0].startswith("tp:signTransactionSignature-")
     assert qr_format == FORMAT_NONE
     assert title == expected_title

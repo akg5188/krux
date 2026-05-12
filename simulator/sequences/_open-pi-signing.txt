@@ -1,0 +1,4 @@
+include _open-pi-features.txt
+
+# Open "扫码签名"
+press BUTTON_A

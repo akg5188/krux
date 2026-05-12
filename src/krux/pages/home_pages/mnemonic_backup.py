@@ -152,10 +152,13 @@ class MnemonicsView(Page):
         if Settings().hardware.printer.driver == THERMAL_ADAFRUIT_TXT:
             self.ctx.display.clear()
             if self.prompt(
-                amigo_text("打印助记词?", t("Print?"))
-                + "\n\n"
-                + Settings().hardware.printer.driver
-                + "\n\n",
+                amigo_text(
+                    "打印助记词?\n\nTTL 串口热敏打印机\n\n",
+                    t("Print?")
+                    + "\n\n"
+                    + Settings().hardware.printer.driver
+                    + "\n\n",
+                ),
                 self.ctx.display.height() // 2,
             ):
                 from ..print_page import PrintPage

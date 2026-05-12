@@ -1,7 +1,7 @@
 include _load-12-word-mnemonic.txt
 
-# Open "扫码签名"
-press BUTTON_A
+# Open "树莓派功能 -> 扫码签名"
+include _open-pi-signing.txt
 
 # Enter the Web3 scan-and-sign flow
 x2 press BUTTON_B

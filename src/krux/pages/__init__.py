@@ -48,7 +48,13 @@ from ..display import (
     BOTTOM_LINE,
 )
 from ..qr import to_qr_codes, FORMAT_NONE
-from ..krux_settings import t, Settings
+from ..krux_settings import (
+    CNC_FILE_DRIVER,
+    CNC_GRBL_DRIVER,
+    THERMAL_ADAFRUIT_TXT,
+    t,
+    Settings,
+)
 from ..sd_card import SDHandler
 from ..kboard import kboard
 
@@ -277,7 +283,13 @@ class Page:
             cursor_y += BOTTOM_LINE
             cursor_y //= 2
             self.ctx.display.draw_hcentered_text(
-                t("PAGE to toggle brightness"), cursor_y, theme.frame_color
+                (
+                    "点按退出 / 按键调亮度"
+                    if kboard.is_amigo
+                    else t("PAGE to toggle brightness")
+                ),
+                cursor_y,
+                theme.frame_color,
             )
 
         code_generator = to_qr_codes(data, qr_data_width, qr_format)
@@ -400,8 +412,20 @@ class Page:
         if not self.has_printer() and check_printer:
             return False
         self.ctx.display.clear()
-        prompt_text = (text + "\n\n%s\n\n") % Settings().hardware.printer.driver
+        prompt_text = (text + "\n\n%s\n\n") % self._printer_driver_label()
         return self.prompt(prompt_text, self.ctx.display.height() // 2)
+
+    def _printer_driver_label(self):
+        """Human-readable printer driver names for confirmation prompts."""
+        driver = Settings().hardware.printer.driver
+        if kboard.is_amigo:
+            labels = {
+                THERMAL_ADAFRUIT_TXT: "TTL 串口热敏打印机",
+                CNC_FILE_DRIVER: "导出 CNC 文件到 SD 卡",
+                CNC_GRBL_DRIVER: "GRBL 串口 CNC",
+            }
+            return labels.get(driver, driver)
+        return driver
 
     def prompt(self, text, offset_y=0, highlight_prefix=""):
         """Prompts user to answer Yes or No"""
@@ -503,11 +527,16 @@ class Page:
             text = prefix
             prefix = ""
             fixed_chars = 0
+        ellipsis = "..." if kboard.is_amigo else "…"
         if not crop_middle:
-            return "{}{}…".format(prefix, text[: usable_chars - len(prefix) - 1])
-        usable_chars -= len(prefix) + fixed_chars + 1
+            return "{}{}{}".format(
+                prefix, text[: usable_chars - len(prefix) - len(ellipsis)], ellipsis
+            )
+        usable_chars -= len(prefix) + fixed_chars + len(ellipsis)
         half = usable_chars // 2
-        return "{}{}…{}".format(prefix, text[: half + fixed_chars], text[-half:])
+        return "{}{}{}{}".format(
+            prefix, text[: half + fixed_chars], ellipsis, text[-half:]
+        )
 
     def has_printer(self):
         """Checks if the device has a printer setup"""
@@ -526,9 +555,11 @@ class Page:
 
     def shutdown(self):
         """Handler for the 'shutdown' menu item"""
-        if self.prompt(t("Are you sure?"), self.ctx.display.height() // 2):
+        prompt_text = "确认关机?" if kboard.is_amigo else t("Are you sure?")
+        shutdown_text = "正在关机..." if kboard.is_amigo else t("Shutting down…")
+        if self.prompt(prompt_text, self.ctx.display.height() // 2):
             self.ctx.display.clear()
-            self.ctx.display.draw_centered_text(t("Shutting down…"))
+            self.ctx.display.draw_centered_text(shutdown_text)
             time.sleep_ms(SHUTDOWN_WAIT_TIME)
             return MENU_SHUTDOWN
         return MENU_CONTINUE
@@ -921,7 +952,7 @@ class Menu:
                 self.ctx.display.draw_string(
                     12,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    "测试网" if kboard.is_amigo else "Test",
+                    "Test",
                     GREEN,
                     theme.info_bg_color,
                 )
@@ -929,7 +960,7 @@ class Menu:
                 self.ctx.display.draw_string(
                     6,
                     STATUS_BAR_HEIGHT - FONT_HEIGHT - 1,
-                    "测" if kboard.is_amigo else "T",
+                    "T",
                     GREEN,
                     theme.info_bg_color,
                 )
@@ -954,10 +985,6 @@ class Menu:
         # Expand last region to fill the screen
         y_keypad_map[-1] = self.ctx.display.height()
         self.ctx.input.touch.y_regions = y_keypad_map
-
-        if kboard.is_amigo:
-            self._draw_amigo_touch_menu(y_keypad_map, selected_item_index)
-            return
 
         # Draw dividers
         for i, y in enumerate(y_keypad_map[:-1]):
@@ -993,66 +1020,6 @@ class Menu:
                     self.ctx.display.draw_hcentered_text(
                         text, offset_y_item + FONT_HEIGHT * j, fg_color
                     )
-
-    def _draw_amigo_touch_menu(self, y_keypad_map, selected_item_index):
-        """Draw card-like touch targets for Amigo's larger screen."""
-        card_margin_x = DEFAULT_PADDING
-        card_gap_y = max(MINIMAL_PADDING, FONT_HEIGHT // 6)
-        card_radius = max(2, FONT_HEIGHT // 3)
-        card_width = self.ctx.display.width() - 2 * card_margin_x
-
-        for i, menu_item in enumerate(self.menu_view):
-            enabled = menu_item[1] is not None
-            selected = selected_item_index == i and self.ctx.input.buttons_active
-            region_top = y_keypad_map[i]
-            region_bottom = y_keypad_map[i + 1]
-            card_y = region_top + card_gap_y
-            card_height = region_bottom - region_top - 2 * card_gap_y
-            if card_height < FONT_HEIGHT + MINIMAL_PADDING:
-                card_y = region_top
-                card_height = region_bottom - region_top
-
-            fg_color = theme.fg_color if enabled else theme.disabled_color
-            card_bg = theme.info_bg_color if enabled else theme.bg_color
-            text_bg = card_bg
-            if selected:
-                card_bg = fg_color
-                text_bg = card_bg
-                fg_color = theme.bg_color
-
-            self.ctx.display.fill_rectangle(
-                card_margin_x,
-                card_y,
-                card_width,
-                card_height,
-                card_bg,
-                card_radius,
-            )
-            self.ctx.display.outline(
-                card_margin_x,
-                card_y,
-                card_width,
-                card_height,
-                theme.frame_color if enabled else theme.disabled_color,
-            )
-
-            menu_item_lines = self.ctx.display.to_lines(menu_item[0])
-            text_y = card_y + max(
-                (card_height - len(menu_item_lines) * FONT_HEIGHT) // 2,
-                MINIMAL_PADDING,
-            )
-            has_subtitle = "\n" in menu_item[0] and len(menu_item_lines) > 1
-            for j, text in enumerate(menu_item_lines):
-                line_color = fg_color
-                if has_subtitle and j > 0 and enabled and not selected:
-                    line_color = theme.highlight_color
-                self.ctx.display.draw_hcentered_text(
-                    text,
-                    text_y + FONT_HEIGHT * j,
-                    line_color,
-                    text_bg,
-                    max_lines=1,
-                )
 
     def _draw_menu(self, selected_item_index):
         extra_lines = sum(

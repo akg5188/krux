@@ -33,7 +33,7 @@ class SelfCheck(Page):
 
     def __init__(self, ctx):
         menu_items = [
-            (self._menu_label("状态总览", "版本 / 屏幕 / 功能"), self.status_overview),
+            (self._menu_label("状态总览", "版本 屏幕 功能"), self.status_overview),
             (self._menu_label("SD 卡检查", "检测存储卡"), self.sd_check),
             (self._menu_label("测试套件", "逐项检查设备"), self.test_suite),
         ]
@@ -57,7 +57,7 @@ class SelfCheck(Page):
                     "固件自检",
                     "设备:" + self._device_name(),
                     "版本:" + VERSION,
-                    "屏幕:" + self._screen_summary(),
+            "屏幕:" + self._screen_summary(),
                     "触摸:" + ("已启用" if kboard.has_touchscreen else "未启用"),
                     "扫码:相机二维码",
                     "链上:已启用",
@@ -102,5 +102,5 @@ class SelfCheck(Page):
         width = lcd_config.get("width", "?")
         height = lcd_config.get("height", "?")
         if board.config.get("type") == "amigo":
-            return "3.5 寸触摸屏 %sx%s" % (width, height)
+            return "3.5寸触摸屏 %sx%s" % (width, height)
         return "%sx%s" % (width, height)

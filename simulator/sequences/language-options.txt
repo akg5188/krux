@@ -1,9 +1,4 @@
-include _wait-for-logo.txt
-
-# Navigate to Settings
-press BUTTON_B
-press BUTTON_B
-press BUTTON_A
+include _open-settings.txt
 
 # Wait message debounce
 wait 0.3

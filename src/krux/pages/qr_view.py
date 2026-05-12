@@ -389,7 +389,7 @@ class SeedQRView(Page):
                     highlight_prefix=":",
                 )
         except:
-            self.flash_text(amigo_text("未检测到 SD 卡。", t("SD card not detected.")))
+            self.flash_text(amigo_text("未检测到 SD 卡.", t("SD card not detected.")))
 
     def save_svg_image(self, file_name):
         """Save QR code image as .svg file"""
@@ -397,7 +397,7 @@ class SeedQRView(Page):
         from .file_operations import SaveFile
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
 
         code, size = self.add_frame(self.code, self.qr_size)
 

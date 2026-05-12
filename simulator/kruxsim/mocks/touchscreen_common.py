@@ -56,6 +56,7 @@ class TCOMMON:
 
     def event(self):
         if sequence_executor and sequence_executor.touch_pos is not None:
+            self.irq_point = sequence_executor.touch_pos
             sequence_executor.touch_pos = None
             return True
         flag = self.event_flag

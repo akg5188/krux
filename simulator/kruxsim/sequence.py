@@ -27,7 +27,16 @@ import cv2
 from kruxsim import events
 from kruxsim.mocks.board import BOARD_CONFIG
 
-COMMANDS = ["press", "press_amigo_only", "touch", "qrcode", "screenshot", "wait", "include", "x"]
+COMMANDS = [
+    "press",
+    "press_amigo_only",
+    "touch",
+    "qrcode",
+    "screenshot",
+    "wait",
+    "include",
+    "x",
+]
 THREAD_PERIOD = 0.05
 
 
@@ -97,7 +106,7 @@ class SequenceExecutor:
             self.key = pg.K_UP
 
     def touch(self):
-        self.touch_pos = (self.command_params[0], self.command_params[1])
+        self.touch_pos = (int(self.command_params[0]), int(self.command_params[1]))
         self.touch_checks = 0
 
     def show_qrcode(self):
@@ -118,14 +127,19 @@ class SequenceExecutor:
 def load_commands(sequence_filepath):
     commands = []
 
-    # If the sequence doesn't exist, it may be board-specific; look for it within a subfolder named for the board
+    # Prefer board-specific sequences when present. Amigo has a different
+    # touch-first menu density, so old generic button counts can land on the
+    # wrong item after UI changes.
     filepath = sequence_filepath
-    if not os.path.exists(filepath):
-        filepath = os.path.join(
-            os.path.dirname(sequence_filepath),
-            BOARD_CONFIG["type"],
-            os.path.basename(sequence_filepath),
-        )
+    board_filepath = os.path.join(
+        os.path.dirname(sequence_filepath),
+        BOARD_CONFIG["type"],
+        os.path.basename(sequence_filepath),
+    )
+    if os.path.exists(board_filepath):
+        filepath = board_filepath
+    elif not os.path.exists(filepath):
+        filepath = board_filepath
 
     with open(filepath, "r") as sequence_file:
         raw_commands = sequence_file.readlines()
@@ -141,10 +155,15 @@ def load_commands(sequence_filepath):
             params = cmd_parts[1:] if len(cmd_parts) > 1 else []
             for _ in range(num_times):
                 if cmd == "include":
-                    commands.extend(
-                        load_commands(
-                            os.path.join(os.path.dirname(sequence_filepath), params[0])
+                    include_path = os.path.join(os.path.dirname(filepath), params[0])
+                    if not os.path.exists(include_path) and os.path.basename(
+                        os.path.dirname(filepath)
+                    ) == BOARD_CONFIG["type"]:
+                        include_path = os.path.join(
+                            os.path.dirname(os.path.dirname(filepath)), params[0]
                         )
+                    commands.extend(
+                        load_commands(include_path)
                     )
                 else:
                     commands.append((cmd, params))

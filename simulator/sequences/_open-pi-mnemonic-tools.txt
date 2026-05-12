@@ -1,0 +1,5 @@
+include _open-pi-features.txt
+
+# Open "助记词工具"
+press BUTTON_B
+press BUTTON_A

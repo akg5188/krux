@@ -47,11 +47,11 @@ class Tools(Page):
 
     def __init__(self, ctx):
         if kboard.is_amigo:
-            datum_label = "数据工具\nPSBT / xpub / 地址"
-            test_label = "设备自检\n触摸 / SD / 打印"
+            datum_label = "数据工具\nPSBT xpub 地址"
+            test_label = "设备测试\n触摸 SD 打印"
             qr_label = "生成二维码\n从文本创建"
-            descriptor_label = "地址工具\n描述符 / 地址"
-            flash_label = "闪存工具\n清理 / 维护"
+            descriptor_label = "地址工具\n描述符和地址"
+            flash_label = "闪存工具\n清理和维护"
             remove_label = "删除助记词\n管理已保存项"
         else:
             datum_label = t("Datum Tool")

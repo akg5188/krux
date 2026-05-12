@@ -1,8 +1,7 @@
 include _load-12-word-mnemonic.txt
 
-# Navigate to the Amigo "助记词工具" menu
-press BUTTON_B
-press BUTTON_A
+# Navigate to the Amigo "树莓派功能 -> 助记词工具" menu
+include _open-pi-mnemonic-tools.txt
 
 screenshot wallet_home_options.png
 

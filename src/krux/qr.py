@@ -327,20 +327,38 @@ class QRPartParser:
         return code
 
 
+def _qr_page_list(data):
+    """Return normalized pre-split QR pages, or None for regular payloads."""
+    if not isinstance(data, (list, tuple)):
+        return None
+    if not data:
+        raise ValueError("QR page list is empty")
+
+    pages = []
+    for part in data:
+        if isinstance(part, bytearray):
+            part = bytes(part)
+        if not isinstance(part, (str, bytes)):
+            raise ValueError("QR page must be text or bytes")
+        pages.append(part)
+    return pages
+
+
 def to_qr_codes(data, max_width, qr_format):
     """Returns the list of QR codes necessary to represent the data in the qr format, given
     the max_width constraint
     """
-    if isinstance(data, (list, tuple)) and data and all(isinstance(item, (str, bytes, bytearray)) for item in data):
+    pages = _qr_page_list(data)
+    if pages is not None:
         part_index = 0
-        num_parts = len(data)
+        num_parts = len(pages)
         while True:
-            part = data[part_index]
-            if isinstance(part, bytearray):
-                part = bytes(part)
+            part = pages[part_index]
             code = qrcode.encode(_qrcode_payload(part))
             yield (code, num_parts)
             part_index = (part_index + 1) % num_parts
+        return
+
     if qr_format == FORMAT_NONE:
         code = qrcode.encode(_qrcode_payload(data))
         yield (code, 1)

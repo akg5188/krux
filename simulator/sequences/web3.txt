@@ -1,6 +1,8 @@
 include _load-12-word-mnemonic.txt
 
-# Home uses the Raspberry Pi-style four entry layout
+# Open the single Raspberry Pi feature entry.
+include _open-pi-features.txt
+
 screenshot web3-home.png
 
 # Open "连接钱包"

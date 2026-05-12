@@ -1,0 +1,7 @@
+include _open-tools.txt
+
+# Descriptor Addresses.
+x3 press BUTTON_B
+press BUTTON_A
+
+screenshot descriptor-addresses.png

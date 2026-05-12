@@ -1,8 +1,7 @@
 include _load-12-word-mnemonic.txt
 
-# Open "连接钱包"
-x2 press BUTTON_B
-press BUTTON_A
+# Open "树莓派功能 -> 连接钱包"
+include _open-pi-connect-wallet.txt
 
 # Navigate to Wallet Descriptor
 x3 press BUTTON_B

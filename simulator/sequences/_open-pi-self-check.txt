@@ -1,0 +1,5 @@
+include _open-pi-features.txt
+
+# Open "固件自检"
+x3 press BUTTON_B
+press BUTTON_A

@@ -1,0 +1,3 @@
+# From the loaded-wallet Home menu, open the single Raspberry Pi feature entry.
+x5 press BUTTON_B
+press BUTTON_A

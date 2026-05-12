@@ -26,9 +26,50 @@ import time
 import gc
 import os
 
-from krux.power import power_manager
-
 MIN_SPLASH_WAIT_TIME = 1000
+_LAST_BOOT_STAGE = "starting"
+power_manager = None
+
+
+def _error_text(error):
+    try:
+        return "%s: %s" % (error.__class__.__name__, error)
+    except Exception:
+        return "unknown error"
+
+
+def boot_status(text):
+    """Tracks boot progress without touching the LCD during early startup."""
+    global _LAST_BOOT_STAGE
+    _LAST_BOOT_STAGE = text
+
+
+def init_power_manager():
+    """Import power management after LCD init so early boot failures stay visible."""
+    global power_manager
+    from krux.power import power_manager as imported_power_manager
+
+    power_manager = imported_power_manager
+    return power_manager
+
+
+def boot_failed(error):
+    """Keep a visible error on screen instead of getting stuck on the logo."""
+    try:
+        sys.print_exception(error)
+    except Exception:
+        pass
+    try:
+        from krux.display import display
+
+        display.clear()
+        display.draw_centered_text(
+            "启动失败\n%s\n\n%s" % (_LAST_BOOT_STAGE, _error_text(error)[:80])
+        )
+    except Exception:
+        pass
+    while True:
+        time.sleep(1)
 
 
 def draw_splash():
@@ -107,7 +148,8 @@ def login(ctx_login):
 
     start_from = None
     while True:
-        if not Login(ctx_login).run(start_from):
+        login_page = Login(ctx_login)
+        if not login_page.run(start_from):
             # Exited for shutdown
             break
 
@@ -122,6 +164,14 @@ def login(ctx_login):
     sys.modules.pop("krux.pages.login")
     del sys.modules["krux"].pages.login
     del Login
+
+
+def prepare_login_display(ctx_display):
+    """Clear the display once before drawing the main menu."""
+    try:
+        ctx_display.display.clear()
+    except Exception as error:
+        sys.print_exception(error)
 
 
 def boot_lock_verification(ctx_lock):
@@ -147,31 +197,42 @@ def home(ctx_home):
                 break
 
 
-preimport_ticks = time.ticks_ms()
-draw_splash()
-check_for_updates()
-gc.collect()
+try:
+    preimport_ticks = time.ticks_ms()
+    draw_splash()
+    boot_status("初始化电源")
+    init_power_manager()
+    boot_status("检查SD卡")
+    check_for_updates()
+    gc.collect()
 
-from krux.context import ctx
-from krux.auto_shutdown import auto_shutdown
+    boot_status("加载系统")
+    from krux.context import ctx
+    from krux.auto_shutdown import auto_shutdown
 
-ctx.power_manager = power_manager
-auto_shutdown.add_ctx(ctx)
+    ctx.power_manager = power_manager
+    auto_shutdown.add_ctx(ctx)
 
 
-# If importing happened too fast, sleep the difference so the logo
-# will be shown
-postimport_ticks = time.ticks_ms()
-if preimport_ticks + MIN_SPLASH_WAIT_TIME > postimport_ticks:
-    time.sleep_ms(preimport_ticks + MIN_SPLASH_WAIT_TIME - postimport_ticks)
+    # If importing happened too fast, sleep the difference so the logo
+    # will be shown
+    postimport_ticks = time.ticks_ms()
+    if preimport_ticks + MIN_SPLASH_WAIT_TIME > postimport_ticks:
+        time.sleep_ms(preimport_ticks + MIN_SPLASH_WAIT_TIME - postimport_ticks)
 
-if not tc_code_verification(ctx):
+    boot_status("校验安全设置")
+    if not tc_code_verification(ctx):
+        power_manager.shutdown()
+    boot_status("检查开机口令")
+    if not boot_lock_verification(ctx):
+        power_manager.shutdown()
+    boot_status("进入主菜单")
+    prepare_login_display(ctx)
+    login(ctx)
+    gc.collect()
+    home(ctx)
+
+    ctx.clear()
     power_manager.shutdown()
-if not boot_lock_verification(ctx):
-    power_manager.shutdown()
-login(ctx)
-gc.collect()
-home(ctx)
-
-ctx.clear()
-power_manager.shutdown()
+except Exception as error:
+    boot_failed(error)

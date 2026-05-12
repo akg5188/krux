@@ -1,0 +1,78 @@
+diff --git a/build/BUILD.sh b/build/BUILD.sh
+index 159cca4..895e2e0 100755
+--- a/build/BUILD.sh
++++ b/build/BUILD.sh
+@@ -1,6 +1,8 @@
+ #!/bin/bash
+ 
+-TOOLCHAIN_PATH="/opt/kendryte-toolchain/bin"
++TOOLCHAIN_PATH="${TOOLCHAIN_PATH:-/opt/kendryte-toolchain/bin}"
++MAKE_JOBS="${KBOOT_MAKE_JOBS:-1}"
++CMAKE_POLICY_ARGS="${KBOOT_CMAKE_POLICY_ARGS:--DCMAKE_POLICY_VERSION_MINIMUM=3.5}"
+ 
+ # ==== Build BOOTLOADER0 (runs from low SRAM address) ====
+ 
+@@ -26,14 +28,14 @@ rm -f Makefile > /dev/null 2>&1
+ cp -f ../lds/bootloader_lo.ld ../lds/kendryte.ld
+ echo
+ echo "=== Running 'cmake'"
+-cmake .. -DPROJ=bootloader_lo -DTOOLCHAIN=${TOOLCHAIN_PATH} > /dev/null 2>&1
++cmake .. -DPROJ=bootloader_lo -DTOOLCHAIN=${TOOLCHAIN_PATH} ${CMAKE_POLICY_ARGS} > /dev/null 2>&1
+ if [ $? -ne 0 ]; then
+     echo "cmake ERROR"
+     exit 1
+ fi
+ 
+-echo "=== Running 'make'"
+-make -j8
++echo "=== Running 'make -j${MAKE_JOBS}'"
++make -j"${MAKE_JOBS}"
+ if [ $? -ne 0 ]; then
+     echo "make ERROR"
+     exit 2
+@@ -71,14 +73,14 @@ rm -f Makefile > /dev/null 2>&1
+ cp -f ../lds/bootloader_hi.ld ../lds/kendryte.ld
+ echo
+ echo "=== Running 'cmake'"
+-cmake .. -DPROJ=bootloader_hi -DTOOLCHAIN=${TOOLCHAIN_PATH} > /dev/null 2>&1
++cmake .. -DPROJ=bootloader_hi -DTOOLCHAIN=${TOOLCHAIN_PATH} ${CMAKE_POLICY_ARGS} > /dev/null 2>&1
+ if [ $? -ne 0 ]; then
+     echo "cmake ERROR"
+     exit 1
+ fi
+ 
+-echo "=== Running 'make'"
+-make -j8
++echo "=== Running 'make -j${MAKE_JOBS}'"
++make -j"${MAKE_JOBS}"
+ if [ $? -ne 0 ]; then
+     echo "make ERROR"
+     exit 2
+diff --git a/lds/kendryte.ld b/lds/kendryte.ld
+index bf2c5c4..fc99e70 100644
+--- a/lds/kendryte.ld
++++ b/lds/kendryte.ld
+@@ -9,12 +9,12 @@ MEMORY
+    * Memory with CPU cache.
+    * 64K CPU SRAM
+    */
+-  ram (wxa!ri) : ORIGIN = 0x80000000, LENGTH = 0x00008000
++  ram (wxari) : ORIGIN = 0x805E0000, LENGTH = 0x00008000
+   /*
+    * Memory without CPU cache
+    * 64K CPU SRAM
+   */
+-  ram_nocache (wxa!ri) : ORIGIN = 0x40000000, LENGTH = 0x00008000
++  ram_nocache (wxari) : ORIGIN = 0x405E0000, LENGTH = 0x00008000
+ }
+ 
+ PROVIDE( _rom_start  = ORIGIN(rom) );
+@@ -23,8 +23,6 @@ PROVIDE( _ram_start  = ORIGIN(ram) );
+ PROVIDE( _ram_end    = ORIGIN(ram) + LENGTH(ram) );
+ PROVIDE( _io_start   = ORIGIN(ram_nocache) );
+ PROVIDE( _io_end     = _io_start + LENGTH(ram_nocache) );
+-PROVIDE( _stack_size = 1 << 15 );
+-PROVIDE( _stack_start = 0x80540000 );
+ 
+ 
+ /*

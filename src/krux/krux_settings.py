@@ -96,8 +96,11 @@ class LocaleControl:
         from .translations import available_languages
 
         self.locales = []
-        self.locales.append(DEFAULT_LOCALE)
-        self.locales.extend(available_languages)
+        if kboard.is_amigo:
+            self.locales.append(DEFAULT_DEVICE_LOCALE)
+        else:
+            self.locales.append(DEFAULT_LOCALE)
+            self.locales.extend(available_languages)
 
     def load_locale(self, locale):
         """Loads translation based on the given locale"""
@@ -475,7 +478,9 @@ class SecuritySettings(SettingsNamespace):
 
     namespace = "settings.security"
     auto_shutdown = NumberSetting(int, "auto_shutdown", 10, [0, 60])
-    hide_mnemonic = CategorySetting("hide_mnemonic", False, [False, True])
+    hide_mnemonic = CategorySetting(
+        "hide_mnemonic", True if kboard.is_amigo else False, [False, True]
+    )
     boot_flash_hash = CategorySetting("boot_flash_hash", False, [False, True])
 
     def label(self, attr):

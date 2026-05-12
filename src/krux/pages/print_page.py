@@ -42,7 +42,7 @@ class PrintPage(Page):
         self.ctx = ctx
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            amigo_text("正在加载打印机…", t("Loading printer…"))
+            amigo_text("正在加载打印机...", t("Loading printer…"))
         )
         self.printer = create_printer()
 
@@ -53,13 +53,13 @@ class PrintPage(Page):
 
             self.ctx.display.draw_centered_text(
                 amigo_text(
-                    "正在导出 %s 到 SD 卡…" % FilePrinter.CNC_FILENAME,
+                    "正在导出 %s 到 SD 卡..." % FilePrinter.CNC_FILENAME,
                     t("Exporting %s to SD card…") % FilePrinter.CNC_FILENAME,
                 )
             )
         else:
             self.ctx.display.draw_centered_text(
-                amigo_text("正在打印…", t("Printing…")) + "\n%d / %d" % (i + 1, count)
+                amigo_text("正在打印...", t("Printing…")) + "\n%d / %d" % (i + 1, count)
             )
 
         self.printer.print_qr_code(qr_code)
@@ -92,7 +92,7 @@ class PrintPage(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(
-            amigo_text("正在打印…", t("Printing…")), self.ctx.display.height() // 2
+            amigo_text("正在打印...", t("Printing…")), self.ctx.display.height() // 2
         )
         suffix_code = suffix
         if kboard.is_amigo:

@@ -1,0 +1,23 @@
+include _load-12-word-mnemonic.txt
+
+# Open "助记词工具" -> "备份核对助记词" -> "二维码备份" -> "明文二维码".
+press BUTTON_B
+press BUTTON_A
+press BUTTON_A
+press BUTTON_A
+press BUTTON_A
+
+# Leave the QR viewer after the one-shot QR debounce, then choose "打印二维码".
+wait 0.5
+press BUTTON_A
+wait 0.2
+
+screenshot print-qr-prompt.png
+
+# Confirm the print prompt. After the QR viewer, Amigo is touch-first again:
+# the first physical button activates button navigation, the second confirms.
+press_amigo_only BUTTON_A
+press BUTTON_A
+wait 0.2
+
+screenshot print-qr-printing.png

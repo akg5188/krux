@@ -51,11 +51,11 @@ class SecondaryMnemonic(Page):
             self.ctx,
             [
                 (
-                    amigo_text("默认加密\n+8 +7 +6 …", t("Default Encrypt")),
+                    amigo_text("默认加密\n+8 +7 +6 ...", t("Default Encrypt")),
                     self.default_encrypt,
                 ),
                 (
-                    amigo_text("默认还原\n-8 -7 -6 …", t("Default Restore")),
+                    amigo_text("默认还原\n-8 -7 -6 ...", t("Default Restore")),
                     self.default_restore,
                 ),
                 (
@@ -87,7 +87,7 @@ class SecondaryMnemonic(Page):
             operator = token[0]
             token = token[1:].strip()
         if operator not in SECONDARY_OPERATORS:
-            raise ValueError("只支持 +、-、*、/ 四种运算")
+            raise ValueError("只支持 + - * / 四种运算")
         if not token.isdigit():
             raise ValueError("移动数字必须是非负整数")
 
@@ -117,7 +117,7 @@ class SecondaryMnemonic(Page):
                 for _ in range(expected_len)
             ]
         if len(tokens) != expected_len:
-            raise ValueError("需要输入 12 组运算，例如 +8 +7 +6 ...")
+            raise ValueError("需要输入 12 组运算, 例如 +8 +7 +6 ...")
         return [cls._parse_shift_token(token, default_operator) for token in tokens]
 
     @staticmethod
@@ -185,7 +185,7 @@ class SecondaryMnemonic(Page):
 
         tokens = normalized.split()
         if len(tokens) != expected_len or any(not token.isdigit() for token in tokens):
-            raise ValueError("请输入 12 个序号，或用逗号分隔 12 组打孔位")
+            raise ValueError("请输入 12 个序号, 或用逗号分隔 12 组打孔位")
 
         indices = [int(token) for token in tokens]
         if any(index < 0 or index >= 2048 for index in indices):
@@ -279,7 +279,7 @@ class SecondaryMnemonic(Page):
 
         if any(operator in "*/" for operator, _ in entries):
             if not self.prompt(
-                amigo_text("乘除会丢失信息，真实钱包慎用。\n继续?", t("Proceed?")),
+                amigo_text("乘除会丢失信息, 真实钱包慎用.\n继续?", t("Proceed?")),
                 self.ctx.display.height() // 2,
             ):
                 return MENU_CONTINUE
@@ -314,6 +314,8 @@ class SecondaryMnemonic(Page):
             current_key.script_type,
         )
         self.ctx.wallet = Wallet(new_key)
+        if hasattr(self.ctx, "remember_wallet"):
+            self.ctx.remember_wallet(self.ctx.wallet)
         self.flash_text(
             "%s 已加载" % new_key.fingerprint_hex_str(),
             highlight_prefix=":",

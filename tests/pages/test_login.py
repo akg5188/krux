@@ -29,6 +29,85 @@ def mock_retro_compatibility(mocker, amigo):
 ################### Test menus
 
 
+def test_amigo_load_key_menu_is_stateless(amigo, mocker):
+    from krux.pages.login import Login
+
+    captured = {}
+
+    class FakeMenu:
+        back_index = -1
+
+        def __init__(self, _ctx, items, *args, **kwargs):
+            captured["labels"] = [item[0] for item in items]
+
+        def run_loop(self):
+            return 0, 0
+
+    mocker.patch("krux.pages.mnemonic_loader.Menu", FakeMenu)
+
+    ctx = create_ctx(mocker, [])
+    Login(ctx).load_key()
+
+    assert captured["labels"] == [
+        "摄像头导入\n二维码和点阵",
+        "手动输入\n单词 编号 钢板",
+    ]
+    assert all(
+        "保存" not in label and "已保存" not in label
+        for label in captured["labels"]
+    )
+
+
+def test_amigo_new_mnemonic_entry_stays_enabled(amigo, mocker):
+    from krux.krux_settings import Settings
+    from krux.pages.login import Login
+
+    Settings().security.hide_mnemonic = True
+    ctx = create_ctx(mocker, [])
+
+    login = Login(ctx)
+    items = dict(login.menu.menu)
+
+    assert items["新助记词"] is not None
+    assert items["SeedSigner"] is not None
+
+
+def test_amigo_new_mnemonic_is_shown_once_then_forgotten(amigo, mocker):
+    from krux.pages import MENU_EXIT
+    from krux.pages.login import Login
+
+    mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    editor_calls = []
+
+    class FakeMnemonicEditor:
+        def __init__(self, _ctx, captured_mnemonic, new=False):
+            editor_calls.append((captured_mnemonic, new))
+            self.captured_mnemonic = captured_mnemonic
+
+        def edit(self):
+            return self.captured_mnemonic
+
+    class FakeMenu:
+        back_index = -1
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def run_loop(self, *args, **kwargs):
+            return 0, 0
+
+    mocker.patch("krux.pages.mnemonic_editor.MnemonicEditor", FakeMnemonicEditor)
+    mocker.patch("krux.pages.login.Menu", FakeMenu)
+
+    ctx = create_ctx(mocker, [])
+    status = Login(ctx)._load_key_from_words(mnemonic.split(), new=True)
+
+    assert status == MENU_EXIT
+    assert editor_calls == [(mnemonic, True)]
+    assert ctx.wallet.key.mnemonic == ""
+    assert ctx.wallet.key.root is not None
+
+
 def test_menu_load_from_camera(m5stickv, mocker):
     from krux.pages.login import Login
     from krux.input import BUTTON_ENTER
@@ -806,9 +885,9 @@ def test_load_key_from_text_on_amigo_tft_with_touch(amigo, mocker, mocker_printe
                 [BUTTON_TOUCH]
             )
             +
-            # Done? Confirm, Words correct? Confirm, No passphrase, Single-sig
+            # Done? No passphrase, Load wallet.
+            # Amigo stateless mode skips the plaintext words confirmation.
             [
-                BUTTON_ENTER,
                 BUTTON_ENTER,
                 BUTTON_ENTER,  # Load wallet
             ],
@@ -828,7 +907,8 @@ def test_load_key_from_text_on_amigo_tft_with_touch(amigo, mocker, mocker_printe
         login.load_key_from_text()
 
         assert ctx.input.wait_for_button.call_count == len(case[0])
-        assert ctx.wallet.key.mnemonic == case[1]
+        assert ctx.wallet.key.mnemonic == ""
+        assert ctx.wallet.key.root is not None
 
 
 def test_create_key_from_text(m5stickv, mocker):

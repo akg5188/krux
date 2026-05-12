@@ -1,0 +1,6 @@
+include _wait-for-logo.txt
+
+# Generic login menu: Settings is the third item.
+press BUTTON_B
+press BUTTON_B
+press BUTTON_A

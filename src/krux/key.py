@@ -188,6 +188,11 @@ class Key:
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
+    def forget_plaintext_secret(self):
+        """Drop mnemonic/passphrase strings after the HD root is already derived."""
+        self.mnemonic = ""
+        self.passphrase = ""
+
     def xpub(self, version=None):
         """Returns the xpub representation of the extended master public key"""
         return self.account.to_base58(version)

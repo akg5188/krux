@@ -25,6 +25,7 @@ from .. import (
     Page,
     Menu,
     MENU_CONTINUE,
+    MENU_SHUTDOWN,
     ESC_KEY,
     LOAD_FROM_CAMERA,
     LOAD_FROM_SD,
@@ -41,30 +42,37 @@ class Home(Page):
     """Home is the main menu page of the app"""
 
     def __init__(self, ctx):
-        shtn_reboot_label = t("Shutdown") if kboard.has_battery else t("Reboot")
+        if kboard.is_amigo:
+            shtn_reboot_label = "关机"
+        else:
+            shtn_reboot_label = t("Shutdown") if kboard.has_battery else t("Reboot")
+        menu_items = [
+            (
+                self._amigo_text("备份助记词", t("Backup Mnemonic")),
+                (
+                    self.unlocked_backup_mnemonic
+                    if self._has_plaintext_mnemonic()
+                    else None
+                ),
+            ),
+            (
+                self._amigo_text("扩展公钥", t("Extended Public Key")),
+                self.public_key,
+            ),
+            (self._amigo_text("钱包", t("Wallet")), self.wallet),
+            (self._amigo_text("地址", t("Address")), self.addresses_menu),
+            (self._amigo_text("签名", t("Sign")), self.sign),
+            (
+                "SeedSigner" if kboard.is_amigo else "Pi Features",
+                self.raspberry_pi_features,
+            ),
+        ]
+        menu_items.append((shtn_reboot_label, self.shutdown))
         super().__init__(
             ctx,
             Menu(
                 ctx,
-                [
-                    (
-                        self._amigo_home_label("扫码签名", "比特币 / 链上 / 消息"),
-                        self.signing_center,
-                    ),
-                    (
-                        self._amigo_home_label("助记词工具", "备份 / BIP85 / 钢板"),
-                        self.mnemonic_center,
-                    ),
-                    (
-                        self._amigo_home_label("连接钱包", "公钥 / 地址 / 描述符"),
-                        self.connect_wallet_center,
-                    ),
-                    (
-                        self._amigo_home_label("固件自检", "设备 / 触摸 / SD 卡"),
-                        self.self_check,
-                    ),
-                    (shtn_reboot_label, self.shutdown),
-                ],
+                menu_items,
                 back_label=None,
             ),
         )
@@ -81,12 +89,141 @@ class Home(Page):
             return chinese
         return default_text
 
+    def _run_submenu(self, submenu):
+        """Run a submenu and propagate shutdown when a child returns it."""
+        result = submenu.run_loop()
+        if isinstance(result, tuple) and len(result) > 1:
+            status = result[1]
+            return status if status != MENU_CONTINUE else MENU_CONTINUE
+        return MENU_CONTINUE
+
+    def _has_plaintext_mnemonic(self):
+        """Return True when the current RAM-only session keeps mnemonic words."""
+        try:
+            if self.ctx.wallet.key.mnemonic:
+                return True
+            mnemonic, _ = self._wallet_secret()
+            return bool(mnemonic)
+        except Exception:
+            return False
+
+    def _mnemonic_not_available(self):
+        """Explain why mnemonic-text tools are disabled in Amigo stateless mode."""
+        self.flash_error("本次会话没有助记词\n请重新导入")
+        return MENU_CONTINUE
+
+    def _wallet_secret(self):
+        """Return the RAM-only mnemonic/passphrase for the active wallet."""
+        try:
+            key = self.ctx.wallet.key
+            if key.mnemonic:
+                return key.mnemonic, key.passphrase or ""
+        except Exception:
+            pass
+        try:
+            secret = self.ctx.secret_for_wallet(self.ctx.wallet)
+            if isinstance(secret, tuple) and len(secret) == 2:
+                return secret
+        except Exception:
+            pass
+        return None, None
+
+    def boot_lock_settings(self):
+        """Direct Amigo entry for changing the boot/login PIN."""
+        from ..boot_lock import BootLockPage
+
+        return BootLockPage(self.ctx).manage()
+
+    def _verify_secret_pin(self):
+        """Verify Amigo PIN before displaying mnemonic-derived secret material."""
+        if not kboard.is_amigo:
+            return True
+        from ..boot_lock import BootLockPage
+
+        return BootLockPage(self.ctx).verify_before_secret_access()
+
+    def _verify_sign_pin(self):
+        """Verify the configured Amigo PIN before signing."""
+        if not kboard.is_amigo:
+            return True
+        from ..boot_lock import BootLockPage
+
+        return BootLockPage(self.ctx).verify_before_signing()
+
+    def _with_unlocked_mnemonic(self, callback):
+        """Temporarily restore mnemonic text after PIN, then clear it again."""
+        mnemonic, passphrase = self._wallet_secret()
+        if not mnemonic:
+            return self._mnemonic_not_available()
+
+        pin_result = self._verify_secret_pin()
+        if pin_result == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
+        if not pin_result:
+            return MENU_CONTINUE
+
+        original_wallet = self.ctx.wallet
+        original_key = original_wallet.key
+        original_hide_mnemonic = Settings().security.hide_mnemonic
+        original_key.mnemonic = mnemonic
+        original_key.passphrase = passphrase or ""
+        if kboard.is_amigo:
+            Settings().security.hide_mnemonic = False
+        try:
+            return callback()
+        finally:
+            Settings().security.hide_mnemonic = original_hide_mnemonic
+            if kboard.is_amigo:
+                try:
+                    current_wallet = self.ctx.wallet
+                    if (
+                        current_wallet is not None
+                        and current_wallet.key is not None
+                        and current_wallet.key.mnemonic
+                    ):
+                        if hasattr(self.ctx, "remember_wallet"):
+                            self.ctx.remember_wallet(
+                                current_wallet,
+                                current_wallet.key.mnemonic,
+                                current_wallet.key.passphrase,
+                            )
+                        current_wallet.key.forget_plaintext_secret()
+                    if original_key is not getattr(current_wallet, "key", None):
+                        original_key.forget_plaintext_secret()
+                except Exception:
+                    original_key.forget_plaintext_secret()
+                gc.collect()
+
+    def raspberry_pi_features(self):
+        """Single Pi-style entry point while leaving the official Home menu intact."""
+        if kboard.is_amigo:
+            signing_label = "扫码签名"
+            mnemonic_label = "助记词工具"
+            connect_label = "连接钱包"
+            self_check_label = "固件自检"
+        else:
+            signing_label = "扫码签名"
+            mnemonic_label = "助记词工具"
+            connect_label = "连接钱包"
+            self_check_label = "固件自检"
+
+        submenu = Menu(
+            self.ctx,
+            [
+                (signing_label, self.signing_center),
+                (mnemonic_label, self.mnemonic_center),
+                (connect_label, self.connect_wallet_center),
+                (self_check_label, self.self_check),
+            ],
+        )
+        return self._run_submenu(submenu)
+
     def signing_center(self):
         """Pi-style signing hub: scan requests first, then choose signer route."""
         if kboard.is_amigo:
-            psbt_label = "比特币交易签名\n扫码 / SD 卡"
+            psbt_label = "BTC 交易签名\n扫码或SD卡"
             message_label = "比特币消息签名\n先扫地址再签名"
-            web3_label = "扫码签名\n消息 / 交易 / TP 中转"
+            web3_label = "链上扫码签名\n消息 交易 TP"
         else:
             psbt_label = "比特币 PSBT"
             message_label = "比特币消息"
@@ -99,42 +236,59 @@ class Home(Page):
                 (web3_label, self.web3_scan_and_sign),
             ],
         )
-        submenu.run_loop()
-        return MENU_CONTINUE
+        return self._run_submenu(submenu)
 
     def connect_wallet_center(self):
         """Group wallet connection and watch-only exports together."""
         if kboard.is_amigo:
-            web3_label = "连接钱包\nOKX / Bitget / MetaMask"
-            xpub_label = "扩展公钥\n文本 / 二维码 / SD 卡"
-            address_label = "地址核对\n收款 / 找零 / 扫码验址"
-            descriptor_label = "钱包描述符\n多签 / 迷你脚本"
+            btc_label = "BTC 钱包连接\nxpub 地址 描述符"
+            web3_label = "链上钱包连接\nOKX Bitget MetaMask"
         else:
+            btc_label = "BTC 钱包连接"
             web3_label = "Web3 连接钱包"
-            xpub_label = "导出 BTC xpub/zpub"
-            address_label = "地址 / 扫码验址"
-            descriptor_label = t("Wallet Descriptor")
         submenu = Menu(
             self.ctx,
             [
+                (btc_label, self.btc_wallet_export_center),
                 (web3_label, self.web3_connect_wallet),
+            ],
+        )
+        return self._run_submenu(submenu)
+
+    def btc_wallet_export_center(self):
+        """Export BTC wallet data for Sparrow, BlueWallet, Specter and similar apps."""
+        if kboard.is_amigo:
+            xpub_label = "扩展公钥\nxpub zpub QR"
+            address_label = "地址核对\n收款 找零 扫码"
+            descriptor_label = "钱包描述符\n多签 迷你脚本"
+            receive_index_label = "按编号收款地址\n输入派生编号"
+        else:
+            xpub_label = "导出 BTC xpub/zpub"
+            address_label = "地址 / 扫码验址"
+            descriptor_label = t("Wallet Descriptor")
+            receive_index_label = "按编号查看收款地址"
+        submenu = Menu(
+            self.ctx,
+            [
                 (xpub_label, self.public_key),
                 (address_label, self.addresses_menu),
                 (descriptor_label, self.wallet_descriptor),
+                (receive_index_label, self.receive_address_by_index),
             ],
         )
-        submenu.run_loop()
-        return MENU_CONTINUE
+        return self._run_submenu(submenu)
 
     def mnemonic_center(self):
         """Group all loaded-mnemonic tools under one Pi-style entry."""
         if kboard.is_amigo:
-            backup_label = "备份 / 核对助记词\n二维码 / 钢板 / 原始熵"
+            backup_label = "备份核对助记词\n二维码 钢板 原始熵"
             bip85_label = "BIP85 子助记词\n派生新钱包或强密码"
-            secondary_label = "二次助记词\n默认规则 / 自定义还原"
+            secondary_label = "二次助记词\n默认规则 自定义还原"
             xor_label = "助记词异或\n拆分或合并助记词"
             passphrase_label = "密码短语\n添加或修改 BIP39 密码"
-            customize_label = "钱包设置\n网络 / 单签多签 / 路径"
+            customize_label = "钱包设置\n网络 单签多签 路径"
+            derived_address_label = "任意路径\nBTC/EVM 地址"
+            seed_slots_label = "多助记词\n加载或切换当前组"
         else:
             backup_label = "备份 / 核对助记词"
             bip85_label = "BIP85 子助记词"
@@ -142,25 +296,88 @@ class Home(Page):
             xor_label = t("Mnemonic XOR")
             passphrase_label = t("Passphrase")
             customize_label = t("Customize")
+            derived_address_label = "Address by derivation path"
+            seed_slots_label = "Multiple mnemonics"
+        has_mnemonic = self._has_plaintext_mnemonic()
         submenu = Menu(
             self.ctx,
             [
                 (
                     backup_label,
                     (
-                        self.backup_mnemonic
-                        if not Settings().security.hide_mnemonic
+                        self.unlocked_backup_mnemonic
+                        if has_mnemonic
                         else None
                     ),
                 ),
-                (bip85_label, self.bip85),
-                (secondary_label, self.secondary_mnemonic),
-                (xor_label, self.mnemonic_xor),
-                (passphrase_label, self.passphrase),
-                (customize_label, self.customize),
+                (bip85_label, self.unlocked_bip85 if has_mnemonic else None),
+                (
+                    secondary_label,
+                    self.unlocked_secondary_mnemonic if has_mnemonic else None,
+                ),
+                (xor_label, self.unlocked_mnemonic_xor if has_mnemonic else None),
+                (passphrase_label, self.unlocked_passphrase if has_mnemonic else None),
+                (customize_label, self.unlocked_customize if has_mnemonic else None),
+                (derived_address_label, self.derived_address_by_path),
+                (seed_slots_label, self.seed_slots_menu),
             ],
         )
         submenu.run_loop()
+        return MENU_CONTINUE
+
+    def receive_address_by_index(self):
+        """Show a receive address by index, SeedSigner-style."""
+        from .addresses import Addresses
+
+        return Addresses(self.ctx).show_receive_address_by_index()
+
+    def derived_address_by_path(self):
+        """Show a wallet address from a manually entered derivation path."""
+        from .addresses import Addresses
+
+        return Addresses(self.ctx).show_address_by_derivation_path()
+
+    def _seed_slot_label(self, wallet, index):
+        """Build a short wallet-slot label for Amigo's menu."""
+        fingerprint = wallet.key.fingerprint_hex_str(False).upper()
+        suffix = "当前" if wallet == self.ctx.wallet else "切换"
+        return "助记词%d %s\n%s" % (index + 1, fingerprint, suffix)
+
+    def seed_slots_menu(self):
+        """Load or switch between multiple in-memory mnemonics."""
+        if hasattr(self.ctx, "remember_wallet"):
+            self.ctx.remember_wallet(self.ctx.wallet)
+
+        slots = getattr(self.ctx, "wallet_slots", [])
+        if not isinstance(slots, list):
+            slots = []
+        slots = list(slots)
+        items = [("加载另一组助记词\n扫码 手输 SD卡", self.load_another_mnemonic)]
+        for index, wallet in enumerate(slots):
+            items.append(
+                (
+                    self._seed_slot_label(wallet, index),
+                    lambda wallet=wallet: self.switch_seed_slot(wallet),
+                )
+            )
+
+        submenu = Menu(self.ctx, items)
+        submenu.run_loop()
+        return MENU_CONTINUE
+
+    def load_another_mnemonic(self):
+        """Load another mnemonic and keep previous ones in memory."""
+        from ..login import Login
+
+        Login(self.ctx).load_key()
+        if hasattr(self.ctx, "remember_wallet"):
+            self.ctx.remember_wallet(self.ctx.wallet)
+        return MENU_CONTINUE
+
+    def switch_seed_slot(self, wallet):
+        """Switch the current wallet to a previously loaded mnemonic."""
+        self.ctx.wallet = wallet
+        self.flash_text("已切换\n%s" % wallet.key.fingerprint_hex_str(False).upper())
         return MENU_CONTINUE
 
     def backup_mnemonic(self):
@@ -169,6 +386,10 @@ class Home(Page):
 
         mnemonics_viewer = MnemonicsView(self.ctx)
         return mnemonics_viewer.mnemonic()
+
+    def unlocked_backup_mnemonic(self):
+        """PIN-gated mnemonic backup entry for Amigo stateless mode."""
+        return self._with_unlocked_mnemonic(self.backup_mnemonic)
 
     def public_key(self):
         """Handler for the 'xpub' menu item"""
@@ -186,6 +407,8 @@ class Home(Page):
 
     def passphrase(self):
         """Add or replace wallet's passphrase"""
+        if not self._has_plaintext_mnemonic():
+            return self._mnemonic_not_available()
         if not self.prompt(
             self._amigo_text(
                 "添加或修改密码短语?",
@@ -216,16 +439,24 @@ class Home(Page):
                 self.ctx.wallet.key.script_type,
             )
         )
+        if hasattr(self.ctx, "remember_wallet"):
+            self.ctx.remember_wallet(self.ctx.wallet)
         return MENU_CONTINUE
+
+    def unlocked_passphrase(self):
+        """PIN-gated passphrase editor."""
+        return self._with_unlocked_mnemonic(self.passphrase)
 
     def customize(self):
         """Handler for the 'Customize' Wallet menu item"""
+        if not self._has_plaintext_mnemonic():
+            return self._mnemonic_not_available()
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
             self._amigo_text(
-                "自定义钱包会生成新密钥。\n"
-                "当前描述符会卸载。\n"
-                "助记词和密码短语会保留。",
+                "自定义钱包会生成新密钥.\n"
+                "当前描述符会卸载.\n"
+                "助记词和密码短语会保留.",
                 t(
                     "Customizing your wallet will generate a new Key and unload the Descriptor."
                 )
@@ -257,7 +488,13 @@ class Home(Page):
         )
         if prev_key != new_key:
             self.ctx.wallet = Wallet(new_key)
+            if hasattr(self.ctx, "remember_wallet"):
+                self.ctx.remember_wallet(self.ctx.wallet)
         return MENU_CONTINUE
+
+    def unlocked_customize(self):
+        """PIN-gated wallet settings editor."""
+        return self._with_unlocked_mnemonic(self.customize)
 
     def bip85(self):
         """Handler for the 'BIP85' menu item"""
@@ -273,12 +510,16 @@ class Home(Page):
         bip85.export()
         return MENU_CONTINUE
 
+    def unlocked_bip85(self):
+        """PIN-gated BIP85 secret export."""
+        return self._with_unlocked_mnemonic(self.bip85)
+
     def mnemonic_xor(self):
         """Handler for the 'Mnemonic XOR' menu item"""
         if not self.prompt(
             self._amigo_text(
                 "要把当前助记词与另一组助记词做 XOR 吗?\n"
-                "密码短语和描述符会被丢弃。",
+                "密码短语和描述符会被丢弃.",
                 t(
                     "XOR current mnemonic with another one? "
                     "(passphrase and descriptor will be discarded)"
@@ -295,6 +536,10 @@ class Home(Page):
 
         return MENU_CONTINUE
 
+    def unlocked_mnemonic_xor(self):
+        """PIN-gated mnemonic XOR entry."""
+        return self._with_unlocked_mnemonic(self.mnemonic_xor)
+
     def secondary_mnemonic(self):
         """Handler for the TP-style secondary mnemonic item."""
         from .secondary_mnemonic import SecondaryMnemonic
@@ -304,18 +549,29 @@ class Home(Page):
 
         return MENU_CONTINUE
 
+    def unlocked_secondary_mnemonic(self):
+        """PIN-gated secondary mnemonic tools."""
+        return self._with_unlocked_mnemonic(self.secondary_mnemonic)
+
     def wallet(self):
         """Handler for the legacy loaded-wallet submenu."""
 
+        has_mnemonic = self._has_plaintext_mnemonic()
         submenu = Menu(
             self.ctx,
             [
                 (t("Wallet Descriptor"), self.wallet_descriptor),
-                (t("Passphrase"), self.passphrase),
-                (t("Customize"), self.customize),
-                ("BIP85", self.bip85),
-                (t("Mnemonic XOR"), self.mnemonic_xor),
-                ("二次助记词\nTP 风格", self.secondary_mnemonic),
+                (t("Passphrase"), self.unlocked_passphrase if has_mnemonic else None),
+                (t("Customize"), self.unlocked_customize if has_mnemonic else None),
+                ("BIP85", self.unlocked_bip85 if has_mnemonic else None),
+                (
+                    t("Mnemonic XOR"),
+                    self.unlocked_mnemonic_xor if has_mnemonic else None,
+                ),
+                (
+                    "二次助记词\nTP 风格",
+                    self.unlocked_secondary_mnemonic if has_mnemonic else None,
+                ),
             ],
         )
         submenu.run_loop()
@@ -429,9 +685,15 @@ class Home(Page):
         del submenu
         gc.collect()
 
+        pin_result = self._verify_sign_pin()
+        if pin_result == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
+        if not pin_result:
+            return MENU_CONTINUE
+
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            self._amigo_text("签名中…", t("Signing…"))
+            self._amigo_text("签名中...", t("Signing…"))
         )
 
         if index == 1:  # Sign to QR code
@@ -488,7 +750,7 @@ class Home(Page):
                     return MENU_CONTINUE
             except OSError:
                 self.flash_error(
-                    self._amigo_text("未检测到 SD 卡。", t("SD card not detected."))
+                    self._amigo_text("未检测到 SD 卡.", t("SD card not detected."))
                 )
 
         return MENU_CONTINUE
@@ -528,8 +790,8 @@ class Home(Page):
         ):
             if kboard.is_amigo:
                 warning_text = (
-                    "警告: 钱包输出描述符未找到。\n\n"
-                    "部分检查无法执行。"
+                    "警告: 钱包输出描述符未找到.\n\n"
+                    "部分检查无法执行."
                 )
             else:
                 warning_text = (
@@ -620,7 +882,7 @@ class Home(Page):
                 fee_text = (
                     "警告: 费用过高\n"
                     + replace_decimal_separator(("%.1f" % fee_percent))
-                    + "% 的金额。"
+                    + "% 的金额."
                 )
             else:
                 fee_text = (
@@ -703,7 +965,7 @@ class Home(Page):
         # PSBT read OK! Will try to sign
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            self._amigo_text("加载中…", t("Loading…"))
+            self._amigo_text("加载中...", t("Loading…"))
         )
 
         qr_format = FORMAT_PMOFN if qr_format == FORMAT_NONE else qr_format
@@ -721,7 +983,7 @@ class Home(Page):
 
         self.ctx.display.clear()
         self.ctx.display.draw_centered_text(
-            self._amigo_text("处理中…", t("Processing…"))
+            self._amigo_text("处理中...", t("Processing…"))
         )
         outputs, fee_percent = signer.outputs()
 

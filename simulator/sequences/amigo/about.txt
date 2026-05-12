@@ -1,0 +1,11 @@
+include _wait-for-logo.txt
+
+screenshot login-options.png
+
+include _activate-buttons.txt
+
+# Amigo login menu index 7 is About.
+x7 press BUTTON_B
+press BUTTON_A
+
+screenshot about.png

@@ -197,6 +197,32 @@ def test_enter_tiny_seed_24w_amigo(amigo, mocker):
     assert " ".join(words) == TEST_24_WORDS
 
 
+def test_amigo_tiny_seed_shows_bit_weights_and_column_numbers(amigo, mocker):
+    import sys
+
+    from krux.display import DEFAULT_PADDING, FONT_HEIGHT
+    from krux.pages.tiny_seed import TinySeed, TS_BITS_PER_WORD
+
+    ctx = create_ctx(mocker, [])
+    tiny_seed = TinySeed(ctx)
+
+    tiny_seed._draw_labels(0)
+
+    labels = [
+        call.args[2]
+        for call in sys.modules["lcd"].draw_string.call_args_list
+        if len(call.args) >= 3
+    ]
+    expected_bit_weights = [str(1 << bit) for bit in range(TS_BITS_PER_WORD)]
+    expected_column_numbers = [str(index) for index in range(1, TS_BITS_PER_WORD + 1)]
+
+    assert tiny_seed.y_offset == DEFAULT_PADDING + 4 * FONT_HEIGHT
+    assert labels[:TS_BITS_PER_WORD] == expected_bit_weights
+    assert labels[TS_BITS_PER_WORD : 2 * TS_BITS_PER_WORD] == expected_column_numbers
+    ctx.display.to_landscape.assert_called_once()
+    ctx.display.to_portrait.assert_called_once()
+
+
 def test_enter_tiny_seed_24w_pre_loaded_numbers(m5stickv, mocker):
     # This will be used when scanning 24 TinySeed
     # First scanned page will be loaded to be edited, then proceed to scan second page

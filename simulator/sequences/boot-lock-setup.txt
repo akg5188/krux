@@ -1,9 +1,4 @@
-include _wait-for-logo.txt
-
-# Open Settings from the login menu
-press BUTTON_B
-press BUTTON_B
-press BUTTON_A
+include _open-settings.txt
 
 # Open Security
 x5 press BUTTON_B

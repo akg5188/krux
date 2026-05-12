@@ -392,7 +392,7 @@ class KEFEnvelope(Page):
             self.version = kef.suggest_versions(plaintext, self.mode_name)[0]
             self.version_name = kef.VERSIONS[self.version]["name"]
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
         cipher = kef.Cipher(self.__key, self.label, self.iterations)
         self.ciphertext = cipher.encrypt(plaintext, self.version, self.__iv)
         self.__key = None
@@ -417,10 +417,10 @@ class KEFEnvelope(Page):
             # Capped to keep the UI responsive. Cleared on a successful decrypt
             # or device reset.
             self.ctx.display.clear()
-            self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+            self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
             time.sleep_ms(delay_ms)
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
         cipher = kef.Cipher(self.__key, self.label, self.iterations)
         plaintext = cipher.decrypt(self.ciphertext, self.version)
         self.__key = None
@@ -624,18 +624,26 @@ class EncryptMnemonic(Page):
     def encrypt_menu(self):
         """Menu with mnemonic encryption output options"""
 
-        encrypt_outputs_menu = [
-            (amigo_text("保存到闪存", t("Store on Flash")), self.store_mnemonic_on_memory),
-            (
-                amigo_text("保存到 SD 卡", t("Store on SD Card")),
+        if kboard.is_amigo:
+            encrypt_outputs_menu = [
+                (amigo_text("加密二维码", t("Encrypted QR Code")), self.encrypted_qr_code),
+            ]
+        else:
+            encrypt_outputs_menu = [
                 (
-                    None
-                    if not self.has_sd_card()
-                    else lambda: self.store_mnemonic_on_memory(True)
+                    amigo_text("保存到闪存", t("Store on Flash")),
+                    self.store_mnemonic_on_memory,
                 ),
-            ),
-            (amigo_text("加密二维码", t("Encrypted QR Code")), self.encrypted_qr_code),
-        ]
+                (
+                    amigo_text("保存到 SD 卡", t("Store on SD Card")),
+                    (
+                        None
+                        if not self.has_sd_card()
+                        else lambda: self.store_mnemonic_on_memory(True)
+                    ),
+                ),
+                (amigo_text("加密二维码", t("Encrypted QR Code")), self.encrypted_qr_code),
+            ]
         submenu = Menu(self.ctx, encrypt_outputs_menu)
         _, _ = submenu.run_loop()
         return MENU_CONTINUE
@@ -754,7 +762,7 @@ class LoadEncryptedMnemonic(Page):
             self.flash_error(amigo_text("未提供密钥", t("Key was not provided")))
             return MENU_CONTINUE
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
         # Share the in session failure counter with KEFEnvelope.unseal_ui so
         # an attacker can not split attempts across the two decrypt paths.
         delay_ms = KEFEnvelope.backoff_delay_ms()

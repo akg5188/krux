@@ -109,9 +109,27 @@ class TinySeed(Page):
             self.x_pad = FONT_WIDTH + 1
             self.y_pad = FONT_HEIGHT
         if not kboard.has_minimal_display:
-            self.y_offset = DEFAULT_PADDING + 3 * FONT_HEIGHT
+            # Amigo has enough vertical room to show both bit weights and
+            # simple 1-11 column numbers above the grid.
+            label_rows = 4 if kboard.is_amigo else 3
+            self.y_offset = DEFAULT_PADDING + label_rows * FONT_HEIGHT
         else:
             self.y_offset = 2 * FONT_HEIGHT
+
+    def _draw_column_labels(self, labels, row_offset=0):
+        """Draw rotated column labels above the TinySeed grid."""
+        label_right = 7 * FONT_WIDTH - MINIMAL_PADDING + row_offset
+        bit_offset = MINIMAL_PADDING + 2 * FONT_HEIGHT
+        for label in labels:
+            text = str(label)
+            lcd.draw_string(
+                label_right - len(text) * FONT_WIDTH,
+                self.ctx.display.width() - bit_offset,
+                text,
+                theme.fg_color,
+                theme.bg_color,
+            )
+            bit_offset += self.x_pad
 
     def _draw_grid(self):
         """Draws grid for import and export Tinyseed UI"""
@@ -134,16 +152,9 @@ class TinySeed(Page):
         if not kboard.has_minimal_display:
             self.ctx.display.to_landscape()
             bit_numbers = [1 << bit for bit in range(TS_BITS_PER_WORD)]
-            bit_offset = MINIMAL_PADDING + 2 * FONT_HEIGHT
-            for bit_number in bit_numbers:
-                lcd.draw_string(
-                    (7 - len(str(bit_number))) * FONT_WIDTH - MINIMAL_PADDING,
-                    self.ctx.display.width() - bit_offset,
-                    str(bit_number),
-                    theme.fg_color,
-                    theme.bg_color,
-                )
-                bit_offset += self.x_pad
+            self._draw_column_labels(bit_numbers)
+            if kboard.is_amigo:
+                self._draw_column_labels(range(1, TS_BITS_PER_WORD + 1), FONT_HEIGHT)
             self.ctx.display.to_portrait()
         # Draw row numbers on the left side
         y = self.y_offset + (self.y_pad - FONT_HEIGHT) // 2
@@ -211,7 +222,7 @@ class TinySeed(Page):
         pad_y = 8  # grid cell height in px
         self.ctx.display.clear()
         self.ctx.display.draw_hcentered_text(
-            t("Printing…"), self.ctx.display.height() // 2
+            amigo_text("正在打印...", t("Printing…")), self.ctx.display.height() // 2
         )
         self.printer.print_string(amigo_text("点阵备份\n\n", "Tinyseed\n\n"))
         num_pages = len(words) // TS_WORDS_PER_PAGE
@@ -758,7 +769,7 @@ class TinyScanner(Page):
             if page_seed_numbers == self.previous_seed_numbers:
                 self._exit_camera()
                 self.ctx.display.draw_centered_text(
-                    amigo_text("检查扫描结果，必要时可修改", t("Review scanned data, edit if necessary"))
+                    amigo_text("检查扫描结果, 必要时可修改", t("Review scanned data, edit if necessary"))
                 )
                 self.ctx.input.wait_for_button()
                 self.ctx.display.clear()
@@ -783,7 +794,7 @@ class TinyScanner(Page):
             self.ctx.input.reset_ios_state()
             self._exit_camera()
             self.ctx.display.draw_centered_text(
-                amigo_text("检查扫描结果，必要时可修改", t("Review scanned data, edit if necessary"))
+                amigo_text("检查扫描结果, 必要时可修改", t("Review scanned data, edit if necessary"))
             )
             self.ctx.input.wait_for_button()
             self.ctx.display.clear()

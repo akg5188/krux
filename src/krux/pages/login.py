@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import gc
 import sys
 from hashlib import sha256
 from embit.networks import NETWORKS
@@ -28,6 +29,7 @@ from . import (
     Menu,
     MENU_CONTINUE,
     MENU_EXIT,
+    MENU_SHUTDOWN,
     LETTERS,
     ESC_KEY,
     EXTRA_MNEMONIC_LENGTH_FLAG,
@@ -36,6 +38,7 @@ from .mnemonic_loader import MnemonicLoader
 from ..display import DEFAULT_PADDING, FONT_HEIGHT, BOTTOM_PROMPT_LINE
 from ..settings import ELLIPSIS
 from ..krux_settings import Settings
+from ..themes import WHITE, BLACK
 from ..key import (
     Key,
     P2WPKH,
@@ -142,23 +145,34 @@ class Login(MnemonicLoader):
     SETTINGS_MENU_INDEX = 2
 
     def __init__(self, ctx):
-        login_menu_items = [
-            (t("Load Mnemonic"), self.load_key),
-            (
-                t("New Mnemonic"),
-                (self.new_key if not Settings().security.hide_mnemonic else None),
-            ),
-            (t("Settings"), self.settings),
-            (t("Tools"), self.tools),
-            (
-                "固件自检\n设备 / 触摸 / SD 卡" if kboard.is_amigo else "固件自检",
-                self.self_check,
-            ),
-            (t("About"), self.about),
-        ]
+        if kboard.is_amigo:
+            login_menu_items = [
+                ("加载助记词", self.load_key),
+                ("新助记词", self.new_key),
+                ("设置", self.settings),
+                ("工具", self.tools),
+                (
+                    "SeedSigner",
+                    self.raspberry_pi_features,
+                ),
+                ("关于", self.about),
+            ]
+            login_menu_items.append(("关机", self.shutdown))
+        else:
+            login_menu_items = [
+                (t("Load Mnemonic"), self.load_key),
+                (
+                    t("New Mnemonic"),
+                    (self.new_key if not Settings().security.hide_mnemonic else None),
+                ),
+                (t("Settings"), self.settings),
+                (t("Tools"), self.tools),
+                ("固件自检", self.self_check),
+                (t("About"), self.about),
+            ]
         if ctx.power_manager is not None:
             kboard.has_battery = ctx.power_manager.has_battery()
-        if kboard.has_battery:
+        if kboard.has_battery and not kboard.is_amigo:
             login_menu_items.append((t("Shutdown"), self.shutdown))
 
         super().__init__(
@@ -170,13 +184,19 @@ class Login(MnemonicLoader):
             ),
         )
 
+    def boot_lock_settings(self):
+        """Direct Amigo entry for changing the boot/login PIN."""
+        from .boot_lock import BootLockPage
+
+        return BootLockPage(self.ctx).manage()
+
     def new_key(self):
         """Handler for the 'new mnemonic' menu item"""
         if kboard.is_amigo:
-            via_camera = "摄像头熵\n拍照生成助记词"
-            via_cards = "扑克牌熵\n按洗牌顺序输入"
-            via_hex = "十六进制熵\n手动输入随机数"
-            via_words = "手动输入助记词\n逐词输入"
+            via_camera = "拍照随机\n摄像头生成"
+            via_cards = "扑克牌随机\n洗牌顺序输入"
+            via_hex = "十六进制随机\n连续输入熵"
+            via_words = "手动单词\n逐词输入"
             via_d6 = "D6 骰子\n六面骰"
             via_d20 = "D20 骰子\n二十面骰"
         else:
@@ -263,7 +283,7 @@ class Login(MnemonicLoader):
         preview_cards = Login._normalize_card_events(cards)[-limit:]
         preview = " ".join(preview_cards)
         if len(cards) > limit:
-            preview = ELLIPSIS + preview
+            preview = "..." + preview
         return preview
 
     def _capture_card_entropy(self, required_bits, cards=None):
@@ -392,7 +412,7 @@ class Login(MnemonicLoader):
         required_chars = HEX_ENTROPY_BYTES_BY_WORDS[len_mnemonic] * 2
         intro = (
             "请输入随机十六进制字符\n\n"
-            "%d 词需要 %d 个字符\n按树莓派规则处理:\n"
+            "%d 词需要 %d 个字符\n按 SeedSigner 规则处理:\n"
             "先对十六进制文本做 SHA256\n再生成 BIP39 助记词"
         ) % (len_mnemonic, required_chars)
         self.ctx.display.draw_hcentered_text(intro)
@@ -410,7 +430,7 @@ class Login(MnemonicLoader):
         while True:
             preview = "".join(hex_chars[-24:])
             if len(hex_chars) > 24:
-                preview = ELLIPSIS + preview
+                preview = "..." + preview
             char = self.capture_from_keypad(
                 "十六进制 %d/%d" % (len(hex_chars), required_chars),
                 [HEX_ENTROPY_DIGITS],
@@ -465,7 +485,7 @@ class Login(MnemonicLoader):
 
         self.ctx.display.draw_hcentered_text(
             amigo_text(
-                "使用摄像头熵生成助记词。\n(实验性)",
+                "使用摄像头熵生成助记词.\n(实验性)",
                 t("Use camera's entropy to create a new mnemonic")
                 + " "
                 + t("(Experimental)"),
@@ -551,8 +571,13 @@ class Login(MnemonicLoader):
     def _load_key_from_words(self, words, charset=LETTERS, new=False):
         mnemonic = " ".join(words)
 
-        # Don't show word list confirmation or the mnemonic editor if hide mnemonic is enabled
-        if not Settings().security.hide_mnemonic:
+        # Amigo is run as a stateless signer: imported words are never shown
+        # again after keypad/camera entry. Newly generated words are shown once
+        # so the user can make an offline backup before the session is loaded.
+        show_mnemonic_once = kboard.is_amigo and new
+        if show_mnemonic_once or (
+            not kboard.is_amigo and not Settings().security.hide_mnemonic
+        ):
             if charset != LETTERS:
                 if self._confirm_key_from_digits(mnemonic, charset) is not None:
                     return MENU_CONTINUE
@@ -629,7 +654,7 @@ class Login(MnemonicLoader):
             wallet_info += "\n" + (
                 amigo_text("无密码短语", t("No Passphrase"))
                 if not passphrase
-                else amigo_text("密码短语", t("Passphrase")) + " (%d): *…*" % len(passphrase)
+                else amigo_text("密码短语", t("Passphrase")) + " (%d): *...*" % len(passphrase)
             )
 
             self.ctx.display.clear()
@@ -688,9 +713,14 @@ class Login(MnemonicLoader):
                 )
 
         self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(amigo_text("正在加载…", t("Loading…")))
+        self.ctx.display.draw_centered_text(amigo_text("正在加载...", t("Loading…")))
 
         self.ctx.wallet = Wallet(key)
+        if hasattr(self.ctx, "remember_wallet"):
+            self.ctx.remember_wallet(self.ctx.wallet, mnemonic, passphrase)
+        if kboard.is_amigo:
+            key.forget_plaintext_secret()
+            gc.collect()
         return MENU_EXIT
 
     def tools(self):
@@ -705,6 +735,120 @@ class Login(MnemonicLoader):
         sys.modules.pop("krux.pages.tools")
         del sys.modules["krux.pages"].tools
 
+        return MENU_CONTINUE
+
+    def raspberry_pi_features(self):
+        """Keep the official Amigo top menu intact and group Pi-style extras here."""
+        if not kboard.is_amigo:
+            return MENU_CONTINUE
+
+        submenu = Menu(
+            self.ctx,
+            [
+                (
+                    "扫码签名",
+                    self.seed_signer_load_then_signing,
+                ),
+                ("助记词工具", self.amigo_mnemonic_tools),
+                ("连接钱包", self.seed_signer_load_then_connect),
+                ("固件自检", self.self_check),
+            ],
+        )
+        _, status = submenu.run_loop()
+        return status if status != MENU_CONTINUE else MENU_CONTINUE
+
+    def seed_signer_load_then(self, target):
+        """Load a wallet and immediately open the selected SeedSigner flow."""
+        if not self.ctx.is_logged_in():
+            status = self.load_key()
+            if not self.ctx.is_logged_in():
+                return status if status != MENU_EXIT else MENU_CONTINUE
+
+        from .home_pages.home import Home
+
+        home = Home(self.ctx)
+        status = getattr(home, target)()
+        if status == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
+        return MENU_EXIT
+
+    def seed_signer_load_then_signing(self):
+        """Open the Raspberry Pi-style signing hub after the wallet is loaded."""
+        return self.seed_signer_load_then("signing_center")
+
+    def seed_signer_load_then_connect(self):
+        """Open the Raspberry Pi-style wallet connection hub after load."""
+        return self.seed_signer_load_then("connect_wallet_center")
+
+    def seed_signer_load_then_btc_sign(self):
+        """Open BTC PSBT signing after the wallet is loaded."""
+        return self.seed_signer_load_then("sign_psbt")
+
+    def seed_signer_load_then_message_sign(self):
+        """Open Bitcoin message signing after the wallet is loaded."""
+        return self.seed_signer_load_then("sign_message")
+
+    def seed_signer_load_then_web3_sign(self):
+        """Open Web3 scan-and-sign after the wallet is loaded."""
+        return self.seed_signer_load_then("web3_scan_and_sign")
+
+    def seed_signer_load_then_btc_connect(self):
+        """Open BTC wallet export/connect tools after the wallet is loaded."""
+        return self.seed_signer_load_then("btc_wallet_export_center")
+
+    def seed_signer_load_then_web3_connect(self):
+        """Open Web3 wallet connection after the wallet is loaded."""
+        return self.seed_signer_load_then("web3_connect_wallet")
+
+    def amigo_mnemonic_tools(self):
+        """Show wallet-creation and restore helpers before a wallet is loaded."""
+        if not kboard.is_amigo:
+            return self.new_key()
+
+        submenu = Menu(
+            self.ctx,
+            [
+                ("创建钱包\n拍照 骰子 扑克牌", self.new_key),
+                ("加载钱包\n扫码 手输 SD卡", self.load_key),
+                ("钢板二次还原\n0-2047 数字恢复", self.load_key_from_secondary_steel),
+                ("BIP39 编号导入\n0-2047 序号", self.load_key_from_digits),
+            ],
+        )
+        _, status = submenu.run_loop()
+        return status if status != MENU_CONTINUE else MENU_CONTINUE
+
+    def amigo_feature_overview(self):
+        """Explain the Amigo support boundary directly on the device."""
+        self.ctx.display.clear()
+        if kboard.is_amigo:
+            self.ctx.display.fill_rectangle(
+                0, 0, self.ctx.display.width(), self.ctx.display.height(), WHITE
+            )
+        overview = (
+            "Amigo 功能说明\n\n"
+            "原有入口保留\n"
+            "加载助记词 新助记词\n"
+            "设置 工具 关于\n\n"
+            "SeedSigner 入口\n"
+            "扫码签名 助记词工具\n"
+            "连接钱包 固件自检\n\n"
+            "已取消硬件卡路线\n"
+            "不接卡设备\n"
+            "不接USB打印机"
+        )
+        if kboard.is_amigo:
+            self.ctx.display.draw_hcentered_text(
+                overview,
+                color=BLACK,
+                bg_color=WHITE,
+                max_lines=max(8, self.ctx.display.height() // FONT_HEIGHT - 2),
+            )
+        else:
+            self.ctx.display.draw_hcentered_text(
+                overview,
+                max_lines=max(8, self.ctx.display.height() // FONT_HEIGHT - 2),
+            )
+        self.prompt("返回首页?", BOTTOM_PROMPT_LINE)
         return MENU_CONTINUE
 
     def settings(self):

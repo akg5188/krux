@@ -29,10 +29,14 @@
 
 ## 准备工作
 
-- 一台能运行 `git` 和 `docker` 的电脑
+- 一台能运行 `git`、`python3`、`make`、`cmake` 的电脑
+- Kendryte K210 工具链，本机默认路径是 `/home/ak/123/toolchains/kendryte-toolchain/bin`
 - 一条支持数据传输的 USB-C 线
 - Amigo 本体
 - Krux 仓库源码
+
+如果你有 Docker，也可以继续用官方 `./krux build maixpy_amigo` 路线。
+这台电脑当前更推荐用本页下面的“官方基线本地构建”，因为它低负载、可检查、不会一上来吃满电脑。
 
 ## 1. 获取源码
 
@@ -52,22 +56,72 @@ git submodule update --init --recursive
 
 ## 2. 编译 Amigo 固件
 
+### 推荐方式：官方基线本地构建
+
+这条命令做的是“官方 Amigo 固件底座 + 当前 Krux 功能代码”：
+
+- 保留 Amigo 官方板级 `board.py`
+- 同步当前 `src/krux` 主程序
+- 同步 `embit`、`ur`、`urtypes` 依赖
+- 把 `src/boot.py` 作为固件启动入口 `_boot.py`
+- 排除桌面测试专用的 `src/board.py`、`ujson.py`、`urandom.py`、`ucryptolib.py`
+- 用 `MAIXPY_MAKE_JOBS=1` 和 `KBOOT_MAKE_JOBS=1` 低负载编译，避免把电脑拖死
+
+在仓库根目录运行：
+
+```bash
+MAIXPY_MAKE_JOBS=1 KBOOT_MAKE_JOBS=1 \
+nice -n 10 firmware/scripts/build-amigo-official-base.sh
+```
+
+编译完成后，正式交付文件在：
+
+- `build/amigo-official-base-firmware.bin`
+- `build/amigo-official-base-kboot.kfpkg`
+- `build/amigo-official-base-firmware.bin.sha256.txt`
+- `build/amigo-official-base-kboot.kfpkg.sha256.txt`
+
+普通刷机和交付优先刷：
+
+```text
+build/amigo-official-base-kboot.kfpkg
+```
+
+### Docker 方式
+
 在仓库根目录运行：
 
 ```bash
 ./krux build maixpy_amigo
 ```
 
-编译完成后，`build/` 目录里应该能看到这两个文件：
+Docker 编译完成后，`build/` 目录里应该能看到这两个文件：
 
 - `firmware.bin`
 - `kboot.kfpkg`
 
-`firmware.bin` 本身只有几百 KB，这是正常的。你截图里看到的“100 多 MB”通常是电脑上的安装器包，或者是把多个设备的文件、`ktool` 工具一起打进去的 release 总包，不是 Amigo 单机固件本体。
+如果你在本机没有 Docker，就不要硬装一大堆东西把电脑拖死，优先用上面的本地构建脚本。
 
-如果你只看到了 `firmware.bin`，先不要烧录，说明打包步骤没有完整跑通。请重新执行上面的构建命令，确认 `kboot.kfpkg` 也生成了。
+## 2.1 先检查产物，不合格不要刷
 
-如果你已经在 `firmware/MaixPy/projects/maixpy_amigo/build/` 里看到了 `maixpy.bin` 和 `maixpy.elf`，那说明你看到的是更底层的应用构建产物。普通交付还是建议优先刷 `build/firmware.bin` 和 `build/kboot.kfpkg`；如果你只想直接更新 `maixpy.bin`，可以看[Amigo 直接烧录 `maixpy.bin`](from-maixpy-bin.zh-CN.md)。
+先看整包里有没有完整的 `firmware.bin`：
+
+```bash
+unzip -l build/amigo-official-base-kboot.kfpkg
+```
+
+官方 `v26.04.0` 的 Amigo `firmware.bin` 是 `1746688` 字节。我们自定义版本因为加了中文和功能，大小可以不同，但必须是同一量级。
+
+如果看到下面这些情况，不要刷：
+
+- 只有几十 KB
+- 只有几百 KB
+- 大约 `904960` 字节的旧失败产物
+- 只有 `maixpy.bin`，没有 `kboot.kfpkg`
+
+旧的 `build/amigo-custom-kboot.kfpkg` 已经真机验证黑屏，不再作为交付固件。
+
+如果你已经在 `firmware/MaixPy/projects/maixpy_amigo/build/` 里看到了 `maixpy.bin` 和 `maixpy.elf`，那说明你看到的是更底层的应用构建产物。普通交付还是必须优先刷完整 `kboot.kfpkg`；如果你只想直接更新 `maixpy.bin`，可以看[Amigo 直接烧录 `maixpy.bin`](from-maixpy-bin.zh-CN.md)，但普通用户不要走那条路线。
 
 ## 3. 连接 Amigo
 
@@ -103,8 +157,12 @@ ls /dev/ttyUSB*
 再刷写：
 
 ```bash
-./ktool-linux -B goE -b 1500000 build/kboot.kfpkg -p /dev/ttyUSB1
+sudo python3 firmware/Kboot/build/ktool.py -B goE -b 115200 -p /dev/ttyUSB1 build/amigo-official-base-kboot.kfpkg
 ```
+
+这台 Amigo 真机已经验证 `115200` 最稳。高速刷写如果不稳定，优先降回 `115200`。
+
+如果不用 `sudo` 时看到 `Permission denied: '/dev/ttyUSB1'`，说明当前用户没有串口权限。临时刷机直接用上面的 `sudo` 命令；长期使用可以把当前用户加入 `dialout` 组后重新登录。
 
 #### macOS
 
@@ -123,7 +181,7 @@ ls /dev/cu.usb*
 再刷写：
 
 ```bash
-./ktool-mac -B goE -b 1500000 build/kboot.kfpkg -p /dev/cu.usbserial-10
+./ktool-mac -B goE -b 115200 build/amigo-official-base-kboot.kfpkg -p /dev/cu.usbserial-10
 ```
 
 #### Windows
@@ -131,7 +189,7 @@ ls /dev/cu.usb*
 先在 **设备管理器 -> 端口 (COM 和 LPT)** 里看串口号，然后刷写：
 
 ```pwsh
-.\ktool-win.exe -B goE -b 1500000 build\kboot.kfpkg -p COM6
+.\ktool-win.exe -B goE -b 115200 build\amigo-official-base-kboot.kfpkg -p COM6
 ```
 
 ## 5. 如果你刷的是官方 release
@@ -145,7 +203,7 @@ maixpy_amigo/kboot.kfpkg
 Linux 示例：
 
 ```bash
-./ktool-linux -B goE -b 1500000 maixpy_amigo/kboot.kfpkg
+./ktool-linux -B goE -b 115200 maixpy_amigo/kboot.kfpkg
 ```
 
 ## 6. 烧录后检查
@@ -182,6 +240,7 @@ ls /dev/cu.usb*
 - 拔掉 USB 线，等几秒再重新插回去
 - 换另一个串口试试
 - 如果自动识别失败，就手动加 `-p`
+- 如果提示 `Permission denied`，Linux 下先用 `sudo` 重新执行刷机命令
 
 ### Ktool 无法运行
 
@@ -200,8 +259,56 @@ xattr -d com.apple.quarantine ktool-mac
 
 ### 烧录后黑屏或卡在 Logo
 
-- 先确认刷进去的是 `maixpy_amigo` 对应的包，不是别的设备包
-- 再重新执行一次 `./krux build maixpy_amigo`
-- 然后重新烧录
+- 先确认刷进去的是 `maixpy_amigo` 对应的完整 `kboot.kfpkg`，不是别的设备包
+- 不要继续重复刷 `build/amigo-custom-kboot.kfpkg`
+- 不要继续重复刷已经记录为黑屏的 `build/amigo-official-base-kboot.kfpkg`
+- 先刷回官方包确认机器能亮屏
+
+本机已经验证过的官方恢复命令：
+
+```bash
+python3 firmware/Kboot/build/ktool.py -B goE -b 115200 -p /dev/ttyUSB1 \
+/tmp/krux-official-v26.04.0/krux-v26.04.0/maixpy_amigo/kboot.kfpkg
+```
+
+官方包能亮屏后，再回到本页重新构建官方基线自定义包。
+
+如果要判断黑屏是在底层 LCD/背光，还是 Krux Python 启动层，可以先构建最小诊断包：
+
+```bash
+MAIXPY_MAKE_JOBS=1 KBOOT_MAKE_JOBS=1 nice -n 10 \
+firmware/scripts/build-amigo-official-base.sh --diag-boot --official-shell
+```
+
+诊断包路径是：
+
+```text
+build/amigo-diag-official-shell-kboot.kfpkg
+```
+
+这个包复用官方 Amigo `kboot.kfpkg` 里的 bootloader 和配置区，只替换本机编译出的最小诊断 `firmware.bin`，可以少一个变量。
+
+刷入诊断包后，如果屏幕显示 `AMIGO DIAG BOOT OK`，说明 MaixPy 和 LCD/背光底层能工作，下一步排查 Krux 启动脚本。如果诊断包仍黑屏，先立刻刷回官方包救机，再排查本机 MaixPy/K210/LCD 构建环境或硬件连接。
+
+如果完整 Krux 包刷入后是白屏，先不要重复乱刷。当前真机曾定位到一种白屏原因：MaixPy 不支持 CPython 的 `str.translate()`，导致 `_boot.py` 画启动图时崩溃。修复点在 `src/krux/display.py` 的 `_safe_text()`；修复后重新构建 `build/amigo-official-base-official-shell-kboot.kfpkg`，串口应能看到进入 `[KRUX BOOT] login page run start`。
+
+完整 Krux 包推荐使用官方壳构建：
+
+```bash
+MAIXPY_MAKE_JOBS=1 KBOOT_MAKE_JOBS=1 nice -n 10 \
+firmware/scripts/build-amigo-official-base.sh --official-shell
+```
+
+当前真机验证过的刷机包路径是：
+
+```text
+build/amigo-official-base-official-shell-kboot.kfpkg
+```
+
+如果要避免手动输错端口，可以用安全脚本。它只认 Sipeed 的固定 `by-id` 串口，找不到就退出，不会自动改刷其他设备：
+
+```bash
+AMIGO_WAIT_SECONDS=300 firmware/scripts/flash-amigo-diag.sh
+```
 
 如果还是不行，再去看 `troubleshooting.en.md` 里的 Amigo 相关排查说明。

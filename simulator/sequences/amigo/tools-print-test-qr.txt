@@ -1,0 +1,18 @@
+include _open-tools.txt
+
+# Device tests.
+press BUTTON_B
+press BUTTON_A
+
+# Print Test QR.
+press BUTTON_B
+press BUTTON_A
+
+screenshot print-test-qr.png
+
+# Cancel print prompt, then open Touchscreen test.
+press_amigo_only BUTTON_A
+x2 press_amigo_only BUTTON_B
+press_amigo_only BUTTON_A
+
+screenshot touch-test.png

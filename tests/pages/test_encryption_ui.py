@@ -44,6 +44,31 @@ def mock_file_operations(mocker):
     mocker.patch("builtins.open", mocker.mock_open(read_data="SEEDS_JSON"))
 
 
+def test_amigo_encrypt_menu_does_not_offer_storage(amigo, mocker):
+    from embit.networks import NETWORKS
+    from krux.key import Key, TYPE_SINGLESIG
+    from krux.pages.encryption_ui import EncryptMnemonic
+    from krux.wallet import Wallet
+
+    captured = {}
+
+    class FakeMenu:
+        def __init__(self, _ctx, items, *args, **kwargs):
+            captured["labels"] = [item[0] for item in items]
+
+        def run_loop(self):
+            return 0, 0
+
+    mocker.patch("krux.pages.encryption_ui.Menu", FakeMenu)
+
+    ctx = create_ctx(mocker, [])
+    ctx.wallet = Wallet(Key(ECB_WORDS, TYPE_SINGLESIG, NETWORKS["main"]))
+
+    EncryptMnemonic(ctx).encrypt_menu()
+
+    assert captured["labels"] == ["加密二维码"]
+
+
 def test_load_key_from_keypad(m5stickv, mocker):
     from krux.pages.encryption_ui import EncryptionKey
     from krux.input import BUTTON_ENTER, BUTTON_PAGE, BUTTON_PAGE_PREV

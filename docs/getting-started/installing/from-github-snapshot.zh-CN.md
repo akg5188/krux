@@ -68,42 +68,63 @@ git submodule update --remote
 
 ## 3. 重新编译
 
-这版固件的主构建入口还是父仓库脚本：
+2026-05-09 修正：这条线现在默认走“官方 Amigo 固件底座 + 当前 Krux 功能代码”的完整整包构建，不再使用旧的几百 KB 半成品。
+
+推荐命令：
+
+```bash
+MAIXPY_MAKE_JOBS=1 KBOOT_MAKE_JOBS=1 \
+nice -n 10 firmware/scripts/build-amigo-official-base.sh
+```
+
+输出文件：
+
+- `build/amigo-official-base-firmware.bin`
+- `build/amigo-official-base-kboot.kfpkg`
+- `build/amigo-official-base-firmware.bin.sha256.txt`
+- `build/amigo-official-base-kboot.kfpkg.sha256.txt`
+
+如果你有 Docker，也可以用父仓库脚本：
 
 ```bash
 nice -n 10 ./krux build maixpy_amigo
 ```
 
-如果你只想单独重建底层 `maixpy.bin`，或者电脑资源很紧张，也可以直接在 `MaixPy` 里低负载编译：
+不要再把下面这种命令当成正式交付构建：
 
 ```bash
 nice -n 10 make -C firmware/MaixPy/projects/maixpy_amigo/build -j1
 ```
 
-这两个命令的侧重点不同：
+它只能重建已有底层 build 目录，不能保证当前 `src/` 和 vendor 依赖已经完整冻结进固件。
 
-- `./krux build maixpy_amigo` 适合完整交付
-- `make -C ...` 适合只重建底层镜像，或者做快速验证
+### 这几个坑要避开
+
+- 不要刷 `build/amigo-custom-kboot.kfpkg`，它已经真机验证黑屏
+- 不要把几十 KB 或几百 KB 的文件当成完整 Amigo 固件
+- 不要只看 `maixpy.bin` 就交付
+- 不要把 `src/board.py` 这个桌面测试 fallback 冻结进真机固件
+- 不要把 `ujson.py`、`urandom.py`、`ucryptolib.py` 这些桌面测试兼容层冻结进真机固件
 
 ### 你应该看到什么
 
-完整构建结束后，常见产物是：
+官方 `v26.04.0` 的 Amigo `firmware.bin` 是 `1746688` 字节。自定义版本大小可以不同，但必须是同一量级。
 
-- `build/firmware.bin`
-- `build/kboot.kfpkg`
+先检查：
 
-如果你走的是底层镜像路径，还会看到：
+```bash
+unzip -l build/amigo-official-base-kboot.kfpkg
+```
 
-- `firmware/MaixPy/projects/maixpy_amigo/build/maixpy.bin`
-- `firmware/MaixPy/projects/maixpy_amigo/build/maixpy.elf`
+如果 `firmware.bin` 明显太小，说明 Krux 主程序没有完整冻结进去，不要刷。
 
-这次我们验证过的 `maixpy.bin` SHA256 是：
+旧失败产物的 SHA256 是：
 
 ```text
 04a59041f4d20dd9a6ac79d82807325c1d5db38d8ef1e787af820555722ead4b
 ```
 
-如果你用同样的仓库快照、同样的 `MaixPy` 提交和同样的编译环境，应该能得到一致结果。
+这是旧 `904960` 字节 `firmware.bin` 的哈希，只作为排错反例，不再作为可交付基线。
 
 ## 4. 烧录
 

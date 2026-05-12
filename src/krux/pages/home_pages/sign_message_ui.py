@@ -24,7 +24,7 @@ from embit import bip32, compact, script
 from embit.networks import NETWORKS
 import hashlib
 import binascii
-from .. import MENU_CONTINUE, LOAD_FROM_CAMERA, LOAD_FROM_SD, Menu
+from .. import MENU_CONTINUE, MENU_SHUTDOWN, LOAD_FROM_CAMERA, LOAD_FROM_SD, Menu
 from ..utils import Utils
 from ...key import SINGLESIG_SCRIPT_PURPOSE, P2PKH, P2WPKH, P2TR, P2SH_P2WPKH
 from ...themes import theme
@@ -59,6 +59,14 @@ def amigo_text(chinese, default_text):
 
 class SignMessage(Utils):
     """Message Signing user interface"""
+
+    def _verify_sign_pin(self):
+        """Verify the configured Amigo PIN before signing."""
+        if not kboard.is_amigo:
+            return True
+        from ..boot_lock import BootLockPage
+
+        return BootLockPage(self.ctx).verify_before_signing()
 
     def _load_message(self):
         """Loads a message from camera or SD card"""
@@ -150,6 +158,12 @@ class SignMessage(Utils):
         if not self.prompt(amigo_text("签名?", t("Sign?")), BOTTOM_PROMPT_LINE):
             return None
 
+        pin_result = self._verify_sign_pin()
+        if pin_result == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
+        if not pin_result:
+            return None
+
         message_hash = hashlib.sha256(
             hashlib.sha256(
                 b"\x18Bitcoin Signed Message:\n"
@@ -216,6 +230,8 @@ class SignMessage(Utils):
 
         address = self.get_bitcoin_address(derivation)
         signature = self._sign_at_address(b" ".join(message[1:]), derivation, address)
+        if signature == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
 
         return signature, message[1].decode(), address
 
@@ -239,6 +255,8 @@ class SignMessage(Utils):
         address = self.get_bitcoin_address(derivation_path, script_type)
         message = "\n".join(lines[:-2])
         signature = self._sign_at_address(message.encode(), derivation_path, address)
+        if signature == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
 
         return signature, message, address
 
@@ -252,7 +270,7 @@ class SignMessage(Utils):
             self.ctx.display.clear()
             self.ctx.display.draw_centered_text(
                 amigo_text(
-                    "警告:\n\n正在签名原始哈希。\n仅在信任来源时继续。",
+                    "警告:\n\n正在签名原始哈希.\n仅在信任来源时继续.",
                     t("Warning:")
                     + "\n\n"
                     + t("Signing raw hash. Proceed only if you trust the source."),
@@ -270,6 +288,12 @@ class SignMessage(Utils):
             highlight_prefix=":",
         )
         if not self.prompt(amigo_text("签名?", t("Sign?")), BOTTOM_PROMPT_LINE):
+            return ""
+
+        pin_result = self._verify_sign_pin()
+        if pin_result == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
+        if not pin_result:
             return ""
 
         sig = self.ctx.wallet.key.sign(message_hash).serialize()
@@ -395,6 +419,8 @@ class SignMessage(Utils):
 
         if message_filename:
             signature_data = self._sign_at_address_from_sd(data)
+            if signature_data == MENU_SHUTDOWN:
+                return MENU_SHUTDOWN
             if signature_data:
                 sig, message, address = signature_data
                 self._export_signature(
@@ -404,11 +430,15 @@ class SignMessage(Utils):
 
         data = data.encode() if isinstance(data, str) else data
         signature_data = self._sign_at_address_from_qr(data)
+        if signature_data == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
         if signature_data:
             sig, message, address = signature_data
             self._export_signature(sig, qr_format, message_filename, message, address)
             return MENU_CONTINUE
         sig = self.sign_standard_message(data)
+        if sig == MENU_SHUTDOWN:
+            return MENU_SHUTDOWN
         if sig:
             self._export_signature(sig, qr_format, message_filename)
         return MENU_CONTINUE

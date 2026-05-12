@@ -1,3 +1,5 @@
+import pytest
+
 from . import create_ctx
 from ..test_qr import tdata
 
@@ -19,6 +21,7 @@ def test_capture_qr_code(mocker, multiple_devices, tdata):
     from urtypes.crypto.psbt import PSBT
     from krux.wdt import wdt
     from krux.krux_settings import t
+    from krux.kboard import kboard
     from ..test_web3 import build_tp_multi_fragment_raw, build_tpr1_pages
 
     cases = [
@@ -83,9 +86,8 @@ def test_capture_qr_code(mocker, multiple_devices, tdata):
         ctx.display.to_portrait.assert_has_calls(
             [mocker.call() for _ in range(len(case[0]))]
         )
-        ctx.display.draw_centered_text.assert_has_calls(
-            [mocker.call(t("Loading Camera…"))]
-        )
+        loading_text = "正在加载摄像头..." if kboard.is_amigo else t("Loading Camera…")
+        ctx.display.draw_centered_text.assert_has_calls([mocker.call(loading_text)])
         spy_sensor_stop.assert_called()
         spy_wdt.assert_called()
 
@@ -139,13 +141,33 @@ def test_camera_antiglare(mocker, m5stickv):
         qr_code, _ = qr_capturer.qr_capture_loop()
         assert qr_code == None
         ctx.camera.toggle_camera_mode.assert_has_calls([mocker.call()] * 2)
-        assert ctx.camera.toggle_camera_mode.call_count == 3
-        ctx.light.turn_on.call_count == 0
-        ctx.display.draw_centered_text.assert_has_calls(
-            [mocker.call("Anti-glare mode")]
-        )
-        ctx.display.draw_centered_text.assert_has_calls([mocker.call("Zoomed mode")])
-        ctx.display.draw_centered_text.assert_has_calls([mocker.call("Standard mode")])
+    assert ctx.camera.toggle_camera_mode.call_count == 3
+    if ctx.light:
+        assert ctx.light.turn_on.call_count == 0
+    ctx.display.draw_centered_text.assert_has_calls([mocker.call("Anti-glare mode")])
+    ctx.display.draw_centered_text.assert_has_calls([mocker.call("Zoomed mode")])
+    ctx.display.draw_centered_text.assert_has_calls([mocker.call("Standard mode")])
+
+
+def test_capture_qr_code_restores_portrait_on_parser_error(mocker, amigo):
+    from krux.pages.qr_capture import QRCodeCapture, QRPartParser
+
+    ctx = create_ctx(mocker, None)
+    mocker.patch.object(
+        ctx.camera,
+        "snapshot",
+        new=snapshot_generator(
+            outcome=SNAP_ANIMATED_QR,
+            animated_qr=["bad-relay"],
+        ),
+    )
+    mocker.patch.object(QRPartParser, "parse", side_effect=ValueError("bad relay"))
+
+    with pytest.raises(ValueError, match="bad relay"):
+        QRCodeCapture(ctx).qr_capture_loop()
+
+    ctx.camera.stop_sensor.assert_called_once()
+    ctx.display.to_portrait.assert_called()
 
 
 def test_light_control(mocker, multiple_devices):

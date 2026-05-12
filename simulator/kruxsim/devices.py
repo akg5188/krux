@@ -21,6 +21,7 @@
 # THE SOFTWARE.
 import os
 import pygame as pg
+from board import config as BOARD_CONFIG
 
 M5STICKV = "maixpy_m5stickv"
 AMIGO = "maixpy_amigo"
@@ -81,7 +82,10 @@ def load_font(device):
                    os.path.join("..", "firmware", "font", "FusionPixel-14.bdf"),
                 ),
             ]
-        elif device in (DOCK, YAHBOOM, WONDER_MV, TZT, WONDER_K, EMBEDFIRE):
+        elif device in (DOCK, YAHBOOM, WONDER_MV, TZT, WONDER_K, EMBEDFIRE) or (
+            device == AMIGO
+            and BOARD_CONFIG["krux"]["display"]["font_wide"][0] == 16
+        ):
             fonts[device] = [
                 pg.freetype.Font(
                     os.path.join("..", "firmware", "font", "ter-u16n.bdf")

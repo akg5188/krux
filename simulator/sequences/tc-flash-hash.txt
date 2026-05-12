@@ -1,15 +1,11 @@
-include _wait-for-logo.txt
-
-# Navigate to settings
-x2 press BUTTON_B
-press BUTTON_A
+include _open-settings.txt
 
 # Navigate to security
-x4 press BUTTON_C
+x5 press BUTTON_B
 press BUTTON_A
 
 # Navigate to tamper check code
-x2 press BUTTON_C
+x3 press BUTTON_B
 press BUTTON_A
 
 # Yes - enter tc code

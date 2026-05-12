@@ -167,12 +167,12 @@ class Display:
                 offset_h0=80,
             )
         elif kboard.is_amigo:
-            lcd_type = Settings().hardware.display.lcd_type
-            invert = Settings().hardware.display.inverted_colors
-            bgr_to_rgb = Settings().hardware.display.bgr_colors
-            lcd.init(invert=invert, lcd_type=lcd_type)
+            # Match the official Amigo release path. Do not use persisted display
+            # settings here: a bad lcd_type/invert value can make the whole UI
+            # unreadable before the user has a chance to fix settings.
+            lcd.init(invert=True, lcd_type=0)
             lcd.mirror(True)
-            lcd.bgr_to_rgb(bgr_to_rgb)
+            lcd.bgr_to_rgb(True)
         else:
             lcd.init(invert=False)
             lcd.mirror(False)

@@ -187,7 +187,7 @@ class CameraEntropy(Page):
             self.flash_text(amigo_text("采集已取消", t("Capture cancelled")))
             return None
 
-        self.ctx.display.draw_centered_text(amigo_text("处理中…", t("Processing…")))
+        self.ctx.display.draw_centered_text(amigo_text("处理中...", t("Processing…")))
 
         self.entropy_measurement_update(img, all_at_once=True, show_measurement=False)
 

@@ -89,7 +89,7 @@ class SaveFile(Page):
                             # clear and say something to the user
                             self.ctx.display.clear()
                             self.ctx.display.draw_centered_text(
-                                amigo_text("保存中…", t("Processing…"))
+                                amigo_text("保存中...", t("Processing…"))
                             )
 
                             # Now save the file
@@ -112,7 +112,7 @@ class SaveFile(Page):
                     else:
                         break
         except:
-            self.flash_text(amigo_text("未检测到 SD 卡。", t("SD card not detected.")))
+            self.flash_text(amigo_text("未检测到 SD 卡.", t("SD card not detected.")))
         return persisted
 
     def set_filename(
@@ -165,7 +165,7 @@ class SaveFile(Page):
                 self.ctx.display.clear()
                 self.ctx.display.draw_centered_text(
                     amigo_text(
-                        "文件名已存在：%s" % final_filename,
+                        "文件名已存在:%s" % final_filename,
                         t("Filename %s exists on SD card.") % final_filename,
                     )
                 )

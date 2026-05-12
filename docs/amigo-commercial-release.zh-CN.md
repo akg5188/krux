@@ -78,6 +78,71 @@
 - 代码检查：`python3 -m py_compile` 通过，`src/krux/pages/home_pages/secondary_mnemonic.py`、`src/krux/pages/home_pages/addresses.py` 等关键页面可正常编译
 - `simulator/screenshots/` 已确认包含最新的 `print-qr-prompt-300.zh.png`、`print-qr-printing-300.zh.png`、`web3-typed-transaction-preview-300.zh.png`、`tools-create-QR-view-300.zh.png` 等中文截图
 
+## 2026-05-09 验证记录
+
+- 构建路线已经收敛为“官方 Amigo 固件底座 + 当前 Krux 功能代码”，不再使用旧的几百 KB 失败包
+- 低负载构建命令：`MAIXPY_MAKE_JOBS=1 KBOOT_MAKE_JOBS=1 nice -n 10 firmware/scripts/build-amigo-official-base.sh`
+- 完整交付包：`build/amigo-official-base-kboot.kfpkg`
+- 包内 `firmware.bin` 大小：`1876736` 字节
+- 完整交付包 SHA256：`ecdfec0905a65655faf9c5d8db0bf6abab81b6e7b6a11a888952f923f9298069`
+- 独立固件镜像 SHA256：`9083c678af2b01ec51ca232d6bf6e919cd5c8c2cfbe14719a1f862a98686c638`
+- 包内容检查：`unzip -l build/amigo-official-base-kboot.kfpkg` 显示官方 Kboot 结构和 `0x00080000` 固件区不变
+- 关键回归：`tests/test_web3.py` 和 `tests/pages/home_pages/test_web3_ui.py` 结果 `32 passed`
+- 语法检查：`src/krux/web3.py`、`firmware/scripts/build-amigo-official-base.sh`、`firmware/MaixPy/tools/cmake/project.py` 均通过
+- 禁止交付：`build/amigo-custom-kboot.kfpkg`，SHA256 `d43574ae512309c09f35a1a8b54066b6787fe71495a0f58f00b6bf0366d2c6e2`，该包已真机验证黑屏
+- 真机刷入命令：`sudo python3 firmware/Kboot/build/ktool.py -B goE -b 115200 -p /dev/ttyUSB1 build/amigo-official-base-kboot.kfpkg`
+- 真机刷入结果：主固件区成功写入 `1876773 B (00080000~0024FFFF)`，Ktool 最后显示 `Rebooting...`
+- 教程修正：Linux 下如果直接刷机提示 `Permission denied`，使用 `sudo` 或把用户加入 `dialout` 组
+
+## 2026-05-09 真机反馈修复记录
+
+- 用户反馈真机存在“很多乱码”和“功能不完整”的观感问题，本轮不能继续按“已商业交付完成”处理
+- 已修复底层字体缺字风险：`font.c` 查不到字形时不再绘制未初始化缓存，避免缺字变成随机花字
+- 已增加 Amigo 显示层安全文本替换：省略号、细空格和全角标点在绘制前转成更稳的 ASCII 字符
+- 已重排开机首页：新增 `功能总览`，把加载钱包、创建钱包、助记词工具、离线工具、自检、设置等入口前置
+- 已继续清理高频页面中文文案和 3.5 寸触摸屏按钮文案
+- 轻量验证：关键 Python 文件 `py_compile` 通过，`git diff --check` 通过
+- 定向回归一：`tests/test_display.py tests/pages/test_login.py tests/pages/home_pages/test_home.py tests/pages/test_self_check.py tests/pages/home_pages/test_web3_ui.py`，结果 `162 passed`
+- 定向回归二：`tests/pages/test_print_page.py tests/pages/test_device_tests.py tests/pages/test_qr_view.py tests/pages/test_qr_capture.py tests/pages/test_encryption_ui.py tests/pages/test_wallet_settings.py tests/pages/home_pages/test_addresses.py tests/pages/home_pages/test_wallet_descriptor.py tests/pages/home_pages/test_sign_message_ui.py tests/pages/home_pages/test_secondary_mnemonic.py tests/pages/test_tiny_seed.py`，结果 `184 passed`
+- 尚未完成：本轮修复后还没重新生成完整截图、还没重新低负载编译、还没重新刷真机验证，因此不能标记为最终商用交付版
+
+## 2026-05-10 官方底座收敛记录
+
+- 新策略：官方 Amigo 顶层菜单尽量保持不变，只新增一个 `树莓派功能` 入口。
+- 登录页顶层：`加载助记词 / 新助记词 / 设置 / 工具 / 树莓派功能 / 关于`。
+- 加载钱包后首页顶层：`备份助记词 / 扩展公钥 / 钱包 / 地址 / 签名 / 树莓派功能 / 重启或关机`。
+- `树莓派功能` 子菜单承载：`扫码签名 / 助记词工具 / 连接钱包 / 固件自检`。
+- 已清理临时诊断串口打印，避免启动和菜单运行时持续刷日志。
+- 已同步截图脚本导航，关键序列现在都会先进入 `树莓派功能`，避免 Web3、扫码签名、自检截图误拍官方首页。
+- 本轮低负载验证：关键 Python 文件语法检查通过，`git diff --check` 通过，Amigo 中文字库检查 `missing=0`，定向回归 `94 passed`，关键截图序列单独跑通。
+- 已重新低负载编译官方壳包：`build/amigo-official-base-official-shell-kboot.kfpkg`，大小 `865812` 字节，SHA256 `206d78fae4c2ff9621f123c6d8cf24683ae4c072da5910294824a2f464a184b8`；包内 `firmware.bin` 大小 `1653184` 字节，SHA256 `88b627994832c50b9fe2fda0f9841128b88f08bef77b742bece766196e1e6af0`。
+- 仍不恢复：智能卡、ACR39U、PC/SC、pyscard、pcscd、Brother USB 办公打印机直连。
+
+## 2026-05-09 晚间收口记录
+
+- 已重新跑完整 Amigo 中文截图回归：`nice -n 10 bash simulator/generate-device-screenshots.sh maixpy_amigo zh-CN`
+- 截图产物：`176` 张 `simulator/screenshots/*-300.zh.png`
+- 已修复 Amigo 截图触摸序列：模拟器 `touch` 坐标统一转成整数，并把触摸点写入 `irq_point`，以后 Amigo 专用序列能稳定点中大按钮
+- 已新增 Amigo 专用 `print-qr.txt` 序列，`print-qr-prompt-300.zh.png` 不再显示红色 `加载失败`，`print-qr-printing-300.zh.png` 显示 `正在打印... 1 / 1`
+- 打印确认页不再暴露底层驱动名 `thermal/adafruit`，Amigo 上显示为 `TTL 串口热敏打印机`
+- Web3 长交易签名前预览已压缩到确认按钮上方，底部显示 `内容已省略`，不会再压住 `否 / 是` 按钮
+- QR 显示页和扫码页提示已按触摸屏改写为 `点按退出 / 按键调亮度`、`按侧键切换模式\n点屏或返回键退出`
+- 已清掉菜单循环里的高频调试输出，避免真机菜单刷新和按键时持续刷串口日志
+- 本轮完整截图回归中曾出现一次 `Exception in thread Thread-1 (run_krux):`，脚本最终退出 `0`，截图数量完整；随后单独复跑 `wallet-descriptor-wsh.txt`、`extended-public-key-wpkh.txt`、`extended-public-key-wsh.txt` 未复现，后续如再出现需抓完整 traceback
+- 本轮轻量验证：`python3 -m py_compile` 通过，`git diff --check` 通过，`tests/pages/home_pages/test_web3_ui.py tests/pages/test_print_page.py tests/pages/home_pages/test_mnemonic_backup.py tests/test_display.py` 结果 `93 passed`
+- 已完成低负载编译：`MAIXPY_MAKE_JOBS=1 KBOOT_MAKE_JOBS=1 nice -n 10 firmware/scripts/build-amigo-official-base.sh`
+- 新交付包：`build/amigo-official-base-kboot.kfpkg`，大小 `930231` 字节，SHA256 `3624fe149006f46be4d9da511239c70d728fb02790bdc9b1edd74bb078f8a048`
+- 新固件镜像：`build/amigo-official-base-firmware.bin`，大小 `1885440` 字节，SHA256 `b19ac93a23de5fc82040dd263e2f5e693b881165f5fb455bd381e49dcc81d38e`
+- 包内检查：`unzip -l build/amigo-official-base-kboot.kfpkg` 显示 `firmware.bin` 为 `1885440` 字节，仍是官方 Kboot 结构和 `0x00080000` 主固件区，不是旧的几百 KB 黑屏包
+- 真机刷入前检查：`lsusb` 当前只能看到鼠标、SD 读卡器、蓝牙音箱和硬盘盒；`/dev/serial/by-id`、`/dev/ttyUSB*`、`/dev/ttyACM*` 都没有出现 Sipeed/Amigo 串口，所以本轮不能盲刷
+- 如果继续刷机，先让电脑识别到 Amigo 串口，再执行 `sudo python3 firmware/Kboot/build/ktool.py -B goE -b 115200 -p /dev/ttyUSB1 build/amigo-official-base-kboot.kfpkg`
+- 未识别串口时优先检查：数据线是否支持数据、是否插到 Amigo 可刷机 USB 口、是否按住 BOOT/IO0 再点 RESET 或重新插电、USB 转接头是否只供电不传数据
+- 用户重新插 USB 后设备被识别为 `Sipeed USB to Dual Uart`，`/dev/serial/by-id/usb-xel@sipeed_Sipeed_USB_to_Dual_Uart-if00-port0 -> /dev/ttyUSB0`，`if01-port0 -> /dev/ttyUSB1`
+- 真机刷入成功：`sudo python3 firmware/Kboot/build/ktool.py -B goE -b 115200 -p /dev/ttyUSB1 build/amigo-official-base-kboot.kfpkg`
+- 刷机结果：Ktool 成功进入 ROM ISP，写入 bootloader、配置区和 `0x00080000` 主固件区，主固件显示 `Flashed 1885477 B [29 chunks of 65536B] (00080000~0024FFFF) in 183.144s`，最后显示 `Rebooting...`
+- 刷后复查：`/dev/ttyUSB0`、`/dev/ttyUSB1` 仍存在，`sha256sum` 与文档中的新交付包哈希一致；下一步需要人工看真机屏幕是否进入中文 Krux 首页、触摸是否可用
+- 当前仍不支持：智能卡、ACR39U、PC/SC、pyscard、pcscd、Brother USB 办公打印机直连
+
 ## 接手顺序
 
 如果你以后要继续这条线，建议按这个顺序看：

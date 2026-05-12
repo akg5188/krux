@@ -9,7 +9,7 @@ def test_self_check_menu_items(mocker, amigo):
     labels = [name for name, _ in page.menu.menu]
 
     assert labels[:4] == [
-        "状态总览\n版本 / 屏幕 / 功能",
+        "状态总览\n版本 屏幕 功能",
         "SD 卡检查\n检测存储卡",
         "测试套件\n逐项检查设备",
         "触摸测试\n检查大屏触摸",
@@ -39,5 +39,31 @@ def test_login_menu_includes_self_check(mocker, amigo):
     page = Login(ctx)
     labels = [name for name, _ in page.menu.menu]
 
-    assert "固件自检\n设备 / 触摸 / SD 卡" in labels
-    assert labels[labels.index("工具") + 1] == "固件自检\n设备 / 触摸 / SD 卡"
+    assert labels[:6] == [
+        "加载助记词",
+        "新助记词",
+        "设置",
+        "工具",
+        "SeedSigner",
+        "关于",
+    ]
+    assert labels[-1] == "关机"
+
+
+def test_login_seed_signer_menu_shows_signing_and_wallet_connection(mocker, amigo):
+    from krux.pages.login import Login
+
+    ctx = create_ctx(mocker, None)
+    page = Login(ctx)
+    menu_mock = mocker.patch("krux.pages.login.Menu")
+    menu_mock.return_value.run_loop.return_value = (0, 0)
+
+    page.raspberry_pi_features()
+
+    menu_items = menu_mock.call_args.args[1]
+    assert [item[0] for item in menu_items] == [
+        "扫码签名",
+        "助记词工具",
+        "连接钱包",
+        "固件自检",
+    ]

@@ -20,20 +20,31 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import annotations
-
 import io
 import hashlib
-import json
 import math
-import re
-import urllib.parse
-import uuid
-import zlib
-from binascii import a2b_base64
-from dataclasses import dataclass, field
-from enum import IntEnum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from binascii import a2b_base64, crc32, hexlify, unhexlify
+
+try:
+    import zlib
+except ImportError:
+    zlib = None
+
+try:
+    import ujson as json
+except ImportError:
+    import json
+
+try:
+    from typing import Any, Dict, List, Optional, Sequence, Tuple
+except ImportError:
+    # MaixPy/MicroPython does not ship typing; these names only support
+    # desktop annotation evaluation and are ignored by the firmware compiler.
+    class _TypeAlias:
+        def __getitem__(self, _item):
+            return self
+
+    Any = Dict = List = Optional = Sequence = Tuple = _TypeAlias()
 
 from embit import bip32, ec, hashes
 from embit.util import secp256k1
@@ -85,174 +96,459 @@ TYPED_DATA_ACTIONS = {
 }
 
 
+def _crc32_text(text):
+    return str(crc32(text.encode("utf-8")) & 0xFFFFFFFF)
+
+
+def _sha256(data):
+    return hashlib.sha256(data).digest()
+
+
+def _bytes_hex(data):
+    """Return lowercase hex text with MaixPy-compatible binascii."""
+    return hexlify(bytes(data)).decode("ascii")
+
+
+def _bytes_from_hex(text):
+    """Decode hex text with MaixPy-compatible binascii."""
+    return bytes(unhexlify(text))
+
+
+def _sha256_hex(data):
+    return _bytes_hex(_sha256(data))
+
+
+def _json_dumps_compact(data):
+    """Dump JSON with CPython options, falling back for MicroPython ujson."""
+    try:
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    except TypeError:
+        return json.dumps(data)
+
+
+def _deflateio_decompress(compressed, fmt=None, wbits=15):
+    try:
+        import deflate
+    except ImportError:
+        raise Web3Error("当前固件不支持中转二维码解压")
+
+    formats = []
+    if fmt is not None:
+        formats.append(fmt)
+    else:
+        formats.append(getattr(deflate, "AUTO", 0))
+        formats.append(getattr(deflate, "RAW", 1))
+        formats.append(None)
+
+    last_error = None
+    for candidate in formats:
+        stream = io.BytesIO(compressed)
+        try:
+            if candidate is None:
+                reader = deflate.DeflateIO(stream)
+            else:
+                try:
+                    reader = deflate.DeflateIO(stream, candidate, wbits)
+                except TypeError:
+                    reader = deflate.DeflateIO(stream, candidate)
+        except Exception as exc:
+            last_error = exc
+            continue
+
+        chunks = []
+        try:
+            while True:
+                chunk = reader.read(256)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            return b"".join(chunks)
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    if last_error:
+        raise last_error
+    raise Web3Error("当前固件不支持中转二维码解压")
+
+
+def _deflate_format(name, fallback):
+    try:
+        import deflate
+
+        return getattr(deflate, name, fallback)
+    except ImportError:
+        return fallback
+
+
+def _deflateio_decompress_auto(compressed):
+    return _deflateio_decompress(
+        compressed,
+        _deflate_format("AUTO", 0),
+        wbits=15,
+    )
+
+
+def _deflateio_decompress_raw(compressed):
+    return _deflateio_decompress(
+        compressed,
+        _deflate_format("RAW", 1),
+        wbits=15,
+    )
+
+
+def _deflateio_decompress_zlib(compressed):
+    return _deflateio_decompress(
+        compressed,
+        _deflate_format("ZLIB", 2),
+        wbits=15,
+    )
+
+
+def _deflateio_decompress_gzip(compressed):
+    return _deflateio_decompress(
+        compressed,
+        _deflate_format("GZIP", 3),
+        wbits=15,
+    )
+
+
+def _deflateio_decompress_legacy_raw(compressed):
+    try:
+        import deflate
+    except ImportError:
+        raise Web3Error("当前固件不支持中转二维码解压")
+
+    reader = deflate.DeflateIO(io.BytesIO(compressed))
+    chunks = []
+    while True:
+        chunk = reader.read(256)
+        if not chunk:
+            break
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _raw_deflate_decompress(compressed):
+    if zlib is not None and hasattr(zlib, "decompress"):
+        return zlib.decompress(compressed, -15)
+    try:
+        return _deflateio_decompress_raw(compressed)
+    except Exception:
+        return _deflateio_decompress_legacy_raw(compressed)
+
+
+def _zlib_decompress(compressed, raw=False):
+    if raw:
+        return _raw_deflate_decompress(compressed)
+
+    if zlib is not None and hasattr(zlib, "decompress"):
+        return zlib.decompress(compressed)
+
+    if len(compressed) > 6:
+        cmf = compressed[0]
+        flg = compressed[1]
+        if (cmf & 0x0F) == 8 and ((cmf << 8) + flg) % 31 == 0:
+            try:
+                return _deflateio_decompress_zlib(compressed)
+            except Exception:
+                return _raw_deflate_decompress(compressed[2:-4])
+
+    if zlib is not None and hasattr(zlib, "DeflateIO"):
+        fmt = zlib.ZLIB
+        reader = zlib.DeflateIO(io.BytesIO(compressed), fmt)
+        chunks = []
+        while True:
+            chunk = reader.read(256)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+    raise Web3Error("当前固件不支持中转二维码解压")
+
+
+def _gzip_decompress_with_zlib(compressed):
+    if zlib is not None and hasattr(zlib, "decompress"):
+        return zlib.decompress(compressed, 16 + 15)
+    try:
+        return _deflateio_decompress_gzip(compressed)
+    except Exception:
+        return _gzip_decompress(compressed)
+
+
 class Web3Error(ValueError):
     """Raised for malformed or unsupported Web3 payloads."""
 
 
-class Web3RequestDataType(IntEnum):
-    TRANSACTION = 1
-    TYPED_DATA = 2
-    PERSONAL_MESSAGE = 3
-    TYPED_TRANSACTION = 4
+def _web3_request_type_label(data_type):
+    if data_type == Web3RequestDataType.TRANSACTION:
+        return "交易签名"
+    if data_type == Web3RequestDataType.TYPED_DATA:
+        return "结构化数据签名"
+    if data_type == Web3RequestDataType.PERSONAL_MESSAGE:
+        return "消息签名"
+    return "结构化交易签名"
+
+
+class _Web3RequestDataTypeValue(int):
+    def label(self):
+        return _web3_request_type_label(self)
+
+
+class Web3RequestDataType:
+    TRANSACTION = _Web3RequestDataTypeValue(1)
+    TYPED_DATA = _Web3RequestDataTypeValue(2)
+    PERSONAL_MESSAGE = _Web3RequestDataTypeValue(3)
+    TYPED_TRANSACTION = _Web3RequestDataTypeValue(4)
 
     @classmethod
-    def from_code(cls, code: int) -> "Web3RequestDataType":
-        try:
-            return cls(code)
-        except Exception as exc:
-            raise Web3Error(f"暂不支持的链上请求类型: {code}") from exc
+    def from_code(cls, code):
+        if code == cls.TRANSACTION:
+            return cls.TRANSACTION
+        if code == cls.TYPED_DATA:
+            return cls.TYPED_DATA
+        if code == cls.PERSONAL_MESSAGE:
+            return cls.PERSONAL_MESSAGE
+        if code == cls.TYPED_TRANSACTION:
+            return cls.TYPED_TRANSACTION
+        raise Web3Error("暂不支持的链上请求类型: {}".format(code))
 
-    def label(self) -> str:
-        if self == self.TRANSACTION:
-            return "交易签名"
-        if self == self.TYPED_DATA:
-            return "结构化数据签名"
-        if self == self.PERSONAL_MESSAGE:
-            return "消息签名"
-        return "结构化交易签名"
-
-
-@dataclass
 class TpParsedRequest:
-    raw_payload: str
-    namespace: str
-    action: str
-    request_format: str
-    version: str
-    protocol: str
-    network: str
-    chain_id: int
-    request_id: Optional[str]
-    action_id: Optional[str]
-    data_id: Optional[str]
-    dapp_name: Optional[str]
-    dapp_url: Optional[str]
-    dapp_source: Optional[str]
-    address: Optional[str]
-    kind: str
-    message: Optional[str]
-    typed_data_json: Optional[str]
-    tx_data: Optional[Dict[str, Any]]
+    def __init__(
+        self,
+        raw_payload,
+        namespace,
+        action,
+        request_format,
+        version,
+        protocol,
+        network,
+        chain_id,
+        request_id,
+        action_id,
+        data_id,
+        dapp_name,
+        dapp_url,
+        dapp_source,
+        address,
+        kind,
+        message,
+        typed_data_json,
+        tx_data,
+    ):
+        self.raw_payload = raw_payload
+        self.namespace = namespace
+        self.action = action
+        self.request_format = request_format
+        self.version = version
+        self.protocol = protocol
+        self.network = network
+        self.chain_id = chain_id
+        self.request_id = request_id
+        self.action_id = action_id
+        self.data_id = data_id
+        self.dapp_name = dapp_name
+        self.dapp_url = dapp_url
+        self.dapp_source = dapp_source
+        self.address = address
+        self.kind = kind
+        self.message = message
+        self.typed_data_json = typed_data_json
+        self.tx_data = tx_data
 
 
-@dataclass
 class Web3Request:
-    source_format: str
-    data_type: Web3RequestDataType
-    chain_id: int
-    derivation_path: str
-    address: Optional[str]
-    origin: Optional[str]
-    request_id_value: Any
-    request_id_text: Optional[str]
-    sign_data: bytes
-    raw_payload: str
-    message_text: Optional[str] = None
-    typed_data_json: Optional[str] = None
-    tp_request: Optional[TpParsedRequest] = None
-    relay_wallet_name: Optional[str] = None
-    relay_format: Optional[str] = None
-    relay_qr_type: Optional[str] = None
-    relay_chain_hint: Optional[str] = None
+    def __init__(
+        self,
+        source_format,
+        data_type,
+        chain_id,
+        derivation_path,
+        address,
+        origin,
+        request_id_value,
+        request_id_text,
+        sign_data,
+        raw_payload,
+        message_text=None,
+        typed_data_json=None,
+        tp_request=None,
+        relay_wallet_name=None,
+        relay_format=None,
+        relay_qr_type=None,
+        relay_chain_hint=None,
+    ):
+        self.source_format = source_format
+        self.data_type = data_type
+        self.chain_id = chain_id
+        self.derivation_path = derivation_path
+        self.address = address
+        self.origin = origin
+        self.request_id_value = request_id_value
+        self.request_id_text = request_id_text
+        self.sign_data = sign_data
+        self.raw_payload = raw_payload
+        self.message_text = message_text
+        self.typed_data_json = typed_data_json
+        self.tp_request = tp_request
+        self.relay_wallet_name = relay_wallet_name
+        self.relay_format = relay_format
+        self.relay_qr_type = relay_qr_type
+        self.relay_chain_hint = relay_chain_hint
 
 
-@dataclass
 class Web3QrBundle:
-    ur: Optional[UR]
-    pages: List[str]
-    text: Optional[str] = None
+    def __init__(self, ur, pages, text=None):
+        self.ur = ur
+        self.pages = pages
+        self.text = text
 
 
-@dataclass
 class Web3AccountInfo:
-    account_path: str
-    address_path: str
-    children_path: str
-    address: str
-    display_address: str
-    master_fingerprint: bytes
-    master_fingerprint_hex: str
-    compressed_pubkey_hex: str
-    chain_code_hex: str
-    xpub: str
-    origin_keypath: Keypath
-    children_keypath: Keypath
+    def __init__(
+        self,
+        account_path,
+        address_path,
+        children_path,
+        address,
+        display_address,
+        master_fingerprint,
+        master_fingerprint_hex,
+        compressed_pubkey_hex,
+        chain_code_hex,
+        xpub,
+        origin_keypath,
+        children_keypath,
+    ):
+        self.account_path = account_path
+        self.address_path = address_path
+        self.children_path = children_path
+        self.address = address
+        self.display_address = display_address
+        self.master_fingerprint = master_fingerprint
+        self.master_fingerprint_hex = master_fingerprint_hex
+        self.compressed_pubkey_hex = compressed_pubkey_hex
+        self.chain_code_hex = chain_code_hex
+        self.xpub = xpub
+        self.origin_keypath = origin_keypath
+        self.children_keypath = children_keypath
 
 
-@dataclass
 class Web3SigningResult:
-    request: Web3Request
-    signer_address: str
-    digest: bytes
-    signature_bytes: bytes
-    signature_hex: str
-    qr_bundle: Web3QrBundle
+    def __init__(
+        self,
+        request,
+        signer_address,
+        digest,
+        signature_bytes,
+        signature_hex,
+        qr_bundle,
+    ):
+        self.request = request
+        self.signer_address = signer_address
+        self.digest = digest
+        self.signature_bytes = signature_bytes
+        self.signature_hex = signature_hex
+        self.qr_bundle = qr_bundle
 
 
-@dataclass
 class EvmAccessListEntry:
-    address: bytes
-    storage_keys: List[bytes]
+    def __init__(self, address, storage_keys):
+        self.address = address
+        self.storage_keys = storage_keys
 
 
-@dataclass
 class EvmUnsignedTransaction:
-    tx_type: int
-    chain_id: int
-    nonce: int
-    gas_limit: int
-    to: Optional[bytes]
-    value: int
-    data: bytes
-    gas_price: Optional[int] = None
-    max_priority_fee_per_gas: Optional[int] = None
-    max_fee_per_gas: Optional[int] = None
-    access_list: List[EvmAccessListEntry] = field(default_factory=list)
+    def __init__(
+        self,
+        tx_type,
+        chain_id,
+        nonce,
+        gas_limit,
+        to,
+        value,
+        data,
+        gas_price=None,
+        max_priority_fee_per_gas=None,
+        max_fee_per_gas=None,
+        access_list=None,
+    ):
+        self.tx_type = tx_type
+        self.chain_id = chain_id
+        self.nonce = nonce
+        self.gas_limit = gas_limit
+        self.to = to
+        self.value = value
+        self.data = data
+        self.gas_price = gas_price
+        self.max_priority_fee_per_gas = max_priority_fee_per_gas
+        self.max_fee_per_gas = max_fee_per_gas
+        self.access_list = access_list if access_list is not None else []
 
 
-@dataclass
 class TpMultiFragment:
-    index: int
-    total: int
-    chunk: str
-    crc32: str
+    def __init__(self, index, total, chunk, crc32):
+        self.index = index
+        self.total = total
+        self.chunk = chunk
+        self.crc32 = crc32
 
 
-@dataclass
 class RelayFragment:
-    prefix: str
-    index: int
-    total: int
-    chunk: str
-    crc32: str
+    def __init__(self, prefix, index, total, chunk, crc32):
+        self.prefix = prefix
+        self.index = index
+        self.total = total
+        self.chunk = chunk
+        self.crc32 = crc32
 
 
-@dataclass
 class Web3RelayEnvelope:
-    wallet: str
-    wallet_name: str
-    detected_format: Optional[str]
-    qr_type: Optional[str]
-    action: Optional[str]
-    chain: Optional[str]
-    payload: str
-    response_protocol: Optional[str] = None
-    request_id: Optional[str] = None
-    origin: Optional[str] = None
-    data_type_name: Optional[str] = None
-    request_data_type_id: Optional[int] = None
-    request_sign_data_hex: Optional[str] = None
-    chain_id: Optional[int] = None
-    address: Optional[str] = None
-    address_path: Optional[str] = None
-    expected_address: Optional[str] = None
+    def __init__(
+        self,
+        wallet,
+        wallet_name,
+        detected_format,
+        qr_type,
+        action,
+        chain,
+        payload,
+        response_protocol=None,
+        request_id=None,
+        origin=None,
+        data_type_name=None,
+        request_data_type_id=None,
+        request_sign_data_hex=None,
+        chain_id=None,
+        address=None,
+        address_path=None,
+        expected_address=None,
+    ):
+        self.wallet = wallet
+        self.wallet_name = wallet_name
+        self.detected_format = detected_format
+        self.qr_type = qr_type
+        self.action = action
+        self.chain = chain
+        self.payload = payload
+        self.response_protocol = response_protocol
+        self.request_id = request_id
+        self.origin = origin
+        self.data_type_name = data_type_name
+        self.request_data_type_id = request_data_type_id
+        self.request_sign_data_hex = request_sign_data_hex
+        self.chain_id = chain_id
+        self.address = address
+        self.address_path = address_path
+        self.expected_address = expected_address
 
 
 class TpMultiFragmentAssembler:
     def __init__(self) -> None:
-        self.expected_total: Optional[int] = None
-        self.expected_crc: Optional[str] = None
-        self.raw_fragments: Dict[int, str] = {}
+        self.expected_total = None
+        self.expected_crc = None
+        self.raw_fragments = {}
 
     def reset(self) -> None:
         self.expected_total = None
@@ -272,7 +568,7 @@ class TpMultiFragmentAssembler:
         valid_one_based = 1 <= index <= total
         valid_zero_based = 0 <= index < total
         if not valid_one_based and not valid_zero_based:
-            return "error", f"分片索引不合法 (index={index} total={total})"
+            return "error", "分片索引不合法 (index={} total={})".format(index, total)
 
         if self.expected_total is None:
             self.expected_total = total
@@ -285,14 +581,14 @@ class TpMultiFragmentAssembler:
 
         expected = self.expected_total or total
         if self.received_count < expected:
-            return "progress", f"已接收分片 {self.received_count}/{expected}"
+            return "progress", "已接收分片 {}/{}".format(self.received_count, expected)
 
         payload = self._assemble_payload(expected)
         if payload is None:
             self.reset()
             return "error", "分片索引基准不一致或有缺片"
 
-        crc = str(zlib.crc32(payload.encode("utf-8")) & 0xFFFFFFFF)
+        crc = _crc32_text(payload)
         if crc != self.expected_crc:
             self.reset()
             return "error", "分片 CRC 校验失败"
@@ -311,9 +607,9 @@ class TpMultiFragmentAssembler:
 class RelayFragmentAssembler:
     def __init__(self, prefix: str) -> None:
         self.prefix = prefix.lower()
-        self.expected_total: Optional[int] = None
-        self.expected_crc: Optional[str] = None
-        self.raw_fragments: Dict[int, str] = {}
+        self.expected_total = None
+        self.expected_crc = None
+        self.raw_fragments = {}
 
     def reset(self) -> None:
         self.expected_total = None
@@ -334,7 +630,7 @@ class RelayFragmentAssembler:
         if total <= 0:
             return "error", "分片总数不合法"
         if not (1 <= index <= total):
-            return "error", f"分片索引不合法 (index={index} total={total})"
+            return "error", "分片索引不合法 (index={} total={})".format(index, total)
 
         if self.expected_total is None:
             self.expected_total = total
@@ -347,14 +643,14 @@ class RelayFragmentAssembler:
 
         expected = self.expected_total or total
         if self.received_count < expected:
-            return "progress", f"已接收分片 {self.received_count}/{expected}"
+            return "progress", "已接收分片 {}/{}".format(self.received_count, expected)
 
         encoded = self._assemble_payload(expected)
         if encoded is None:
             self.reset()
             return "error", "分片索引基准不一致或有缺片"
 
-        crc = str(zlib.crc32(encoded.encode("utf-8")) & 0xFFFFFFFF)
+        crc = _crc32_text(encoded)
         if crc != self.expected_crc:
             self.reset()
             return "error", "分片 CRC 校验失败"
@@ -373,16 +669,32 @@ class RelayFragmentAssembler:
 # -----------------------------
 
 
+def _starts_with_any(value: str, prefixes: Sequence[str]) -> bool:
+    """MicroPython-compatible replacement for str.startswith(tuple)."""
+    for prefix in prefixes:
+        if value.startswith(prefix):
+            return True
+    return False
+
+
+def _ends_with_any(value: str, suffixes: Sequence[str]) -> bool:
+    """MicroPython-compatible replacement for str.endswith(tuple)."""
+    for suffix in suffixes:
+        if value.endswith(suffix):
+            return True
+    return False
+
+
 def _clean_hex_prefix(value: str) -> str:
-    if value.startswith(("0x", "0X")):
+    if _starts_with_any(value, ("0x", "0X")):
         return value[2:]
     return value
 
 
 def _ensure_hex_prefix(value: str) -> str:
-    if value.startswith(("0x", "0X")):
+    if _starts_with_any(value, ("0x", "0X")):
         return value
-    return f"0x{value}"
+    return "0x{}".format(value)
 
 
 def _hex_to_bytes(value: Optional[str]) -> bytes:
@@ -394,13 +706,13 @@ def _hex_to_bytes(value: Optional[str]) -> bytes:
     if len(text) % 2:
         text = "0" + text
     try:
-        return bytes.fromhex(text)
+        return _bytes_from_hex(text)
     except Exception as exc:
         raise Web3Error("Invalid hex string") from exc
 
 
 def bytes_to_hex(data: bytes) -> str:
-    return data.hex()
+    return _bytes_hex(data)
 
 
 def normalize_eth_address(value: Optional[str]) -> Optional[str]:
@@ -411,14 +723,14 @@ def normalize_eth_address(value: Optional[str]) -> Optional[str]:
         return None
     text = _ensure_hex_prefix(_clean_hex_prefix(text)).lower()
     if len(_clean_hex_prefix(text)) != 40:
-        raise Web3Error(f"地址格式无效: {value}")
+        raise Web3Error("地址格式无效: {}".format(value))
     return text
 
 
 def _shorten_middle(value: str, prefix_len: int = 10, suffix_len: int = 8) -> str:
     if len(value) <= prefix_len + suffix_len + 3:
         return value
-    return f"{value[:prefix_len]}...{value[-suffix_len:]}"
+    return "{}...{}".format(value[:prefix_len], value[-suffix_len:])
 
 
 def ethereum_checksum_address(value: str) -> str:
@@ -426,7 +738,7 @@ def ethereum_checksum_address(value: str) -> str:
     if normalized is None:
         raise Web3Error("地址为空")
     clean = _clean_hex_prefix(normalized)
-    digest = keccak256(clean.encode("ascii")).hex()
+    digest = _bytes_hex(keccak256(clean.encode("ascii")))
     result = ["0x"]
     for index, char in enumerate(clean):
         if char.isdigit():
@@ -439,13 +751,13 @@ def ethereum_checksum_address(value: str) -> str:
 def ethereum_address_from_bytes(address_bytes: bytes) -> str:
     if len(address_bytes) != 20:
         raise Web3Error("地址长度不正确")
-    return _ensure_hex_prefix(address_bytes.hex())
+    return _ensure_hex_prefix(_bytes_hex(address_bytes))
 
 
 def ethereum_address_from_pubkey(pubkey_uncompressed: bytes) -> str:
     if len(pubkey_uncompressed) != 65 or pubkey_uncompressed[0] != 0x04:
         raise Web3Error("Expected uncompressed 65-byte public key")
-    return _ensure_hex_prefix(keccak256(pubkey_uncompressed[1:])[-20:].hex())
+    return _ensure_hex_prefix(_bytes_hex(keccak256(pubkey_uncompressed[1:])[-20:]))
 
 
 def public_key_to_uncompressed_bytes(pubkey: ec.PublicKey) -> bytes:
@@ -455,7 +767,7 @@ def public_key_to_uncompressed_bytes(pubkey: ec.PublicKey) -> bytes:
 def decode_personal_message(message: str | bytes) -> bytes:
     if isinstance(message, (bytes, bytearray)):
         return bytes(message)
-    if message.startswith(("0x", "0X")):
+    if _starts_with_any(message, ("0x", "0X")):
         try:
             return _hex_to_bytes(message)
         except Exception:
@@ -485,7 +797,7 @@ def _parse_request_id_text(value: Any) -> Optional[str]:
         text = _maybe_text(bytes(value))
         if text is not None:
             return text
-        return bytes(value).hex()
+        return _bytes_hex(value)
     if isinstance(value, DataItem):
         return _parse_request_id_text(value.map if hasattr(value, "map") else value)
     return str(value)
@@ -498,7 +810,7 @@ def _extract_path_from_keypath(value: Any) -> Optional[str]:
         path = value.path()
         if not path:
             return None
-        return f"m/{path}"
+        return "m/{}".format(path)
     if isinstance(value, DataItem):
         return _extract_path_from_keypath(Keypath.from_data_item(value))
     if isinstance(value, str):
@@ -514,7 +826,7 @@ def _normalize_path(path: Optional[str], default: str = DEFAULT_EVM_ADDRESS_PATH
     if not text:
         return default
     if not text.startswith("m"):
-        text = f"m/{text.lstrip('/')}"
+        text = "m/{}".format(text.lstrip("/"))
     return text
 
 
@@ -527,15 +839,15 @@ def _parse_path_components(path: str, allow_wildcard: bool = False) -> List[Path
     elif trimmed.startswith("m"):
         trimmed = trimmed[1:].lstrip("/")
     parts = [part for part in trimmed.split("/") if part]
-    components: List[PathComponent] = []
+    components = []
     for part in parts:
         if allow_wildcard and part == "*":
             components.append(PathComponent(None, False))
             continue
-        hardened = part.endswith(("'", "h", "H"))
+        hardened = _ends_with_any(part, ("'", "h", "H"))
         numeric = part[:-1] if hardened else part
         if not numeric.isdigit():
-            raise Web3Error(f"派生路径片段无效: {part}")
+            raise Web3Error("派生路径片段无效: {}".format(part))
         components.append(PathComponent(int(numeric), hardened))
     return components
 
@@ -765,7 +1077,17 @@ def _base_type(type_name: str) -> str:
 
 
 def _array_dims(type_name: str) -> List[str]:
-    return re.findall(r"\[[^\]]*\]", type_name)
+    dims = []
+    index = 0
+    while True:
+        start = type_name.find("[", index)
+        if start < 0:
+            return dims
+        end = type_name.find("]", start + 1)
+        if end < 0:
+            return dims
+        dims.append(type_name[start : end + 1])
+        index = end + 1
 
 
 def _field_type(field: Any) -> str:
@@ -787,8 +1109,8 @@ def _field_name(field: Any) -> str:
 
 
 def _dependencies(primary_type: str, types: Dict[str, List[Dict[str, Any]]]) -> List[str]:
-    deps: List[str] = []
-    seen: set[str] = set()
+    deps = []
+    seen = set()
 
     def visit(type_name: str) -> None:
         for field in types.get(type_name, []):
@@ -805,18 +1127,18 @@ def _dependencies(primary_type: str, types: Dict[str, List[Dict[str, Any]]]) -> 
 
 def _encode_type(primary_type: str, types: Dict[str, List[Dict[str, Any]]]) -> str:
     if primary_type not in types:
-        raise Web3Error(f"typedData 缺少类型定义: {primary_type}")
+        raise Web3Error("typedData 缺少类型定义: {}".format(primary_type))
     parts = [
-        f"{primary_type}(" + ",".join(
-            f"{_field_type(field)} {_field_name(field)}" for field in types[primary_type]
+        "{}(".format(primary_type) + ",".join(
+            "{} {}".format(_field_type(field), _field_name(field)) for field in types[primary_type]
         )
         + ")"
     ]
     for dependency in _dependencies(primary_type, types):
         parts.append(
-            f"{dependency}("
+            "{}(".format(dependency)
             + ",".join(
-                f"{_field_type(field)} {_field_name(field)}" for field in types[dependency]
+                "{} {}".format(_field_type(field), _field_name(field)) for field in types[dependency]
             )
             + ")"
         )
@@ -824,7 +1146,7 @@ def _encode_type(primary_type: str, types: Dict[str, List[Dict[str, Any]]]) -> s
 
 
 def _infer_domain_types(domain: Dict[str, Any]) -> List[Dict[str, str]]:
-    inferred: List[Dict[str, str]] = []
+    inferred = []
     canonical_order = ["name", "version", "chainId", "verifyingContract", "salt"]
     for key in canonical_order:
         if key not in domain:
@@ -883,7 +1205,7 @@ def _coerce_int(value: Any, signed: bool = False) -> int:
         text = value.strip()
         if not text:
             return 0
-        if text.startswith(("0x", "0X")):
+        if _starts_with_any(text, ("0x", "0X")):
             return int(text[2:] or "0", 16)
         return int(text, 10)
     return int(value)
@@ -898,7 +1220,7 @@ def _coerce_bytes(value: Any) -> bytes:
         return bytes(value)
     if isinstance(value, str):
         text = value.strip()
-        if text.startswith(("0x", "0X")):
+        if _starts_with_any(text, ("0x", "0X")):
             return _hex_to_bytes(text)
         return text.encode("utf-8")
     if isinstance(value, int):
@@ -934,13 +1256,13 @@ def _encode_primitive(field_type: str, value: Any) -> bytes:
     if base_type.startswith("bytes") and base_type != "bytes":
         size_text = base_type[5:]
         if not size_text.isdigit():
-            raise Web3Error(f"不支持的 typedData 字段类型: {field_type}")
+            raise Web3Error("不支持的 typedData 字段类型: {}".format(field_type))
         size = int(size_text)
         if size < 1 or size > 32:
-            raise Web3Error(f"不支持的 typedData 字段类型: {field_type}")
+            raise Web3Error("不支持的 typedData 字段类型: {}".format(field_type))
         raw = _coerce_bytes(value)
         if len(raw) > size:
-            raise Web3Error(f"typedData 字段 {field_type} 过长")
+            raise Web3Error("typedData 字段 {} 过长".format(field_type))
         return raw.ljust(32, b"\x00")
     if base_type.startswith("uint") or base_type == "uint":
         number = _coerce_int(value)
@@ -955,25 +1277,25 @@ def _encode_primitive(field_type: str, value: Any) -> bytes:
         if len(raw) != 24:
             raise Web3Error("function 字段长度不正确")
         return raw.ljust(32, b"\x00")
-    raise Web3Error(f"不支持的 typedData 字段类型: {field_type}")
+    raise Web3Error("不支持的 typedData 字段类型: {}".format(field_type))
 
 
 def _encode_value(field_type: str, value: Any, types: Dict[str, List[Dict[str, Any]]]) -> bytes:
     dims = _array_dims(field_type)
     if dims:
         if not isinstance(value, (list, tuple)):
-            raise Web3Error(f"typedData 数组字段格式无效: {field_type}")
+            raise Web3Error("typedData 数组字段格式无效: {}".format(field_type))
         base_type = _base_type(field_type)
         fixed_length = dims[0][1:-1]
         if fixed_length and int(fixed_length) != len(value):
-            raise Web3Error(f"typedData 数组长度不正确: {field_type}")
+            raise Web3Error("typedData 数组长度不正确: {}".format(field_type))
         encoded = b"".join(_encode_value(base_type + "".join(dims[1:]), item, types) for item in value)
         return keccak256(encoded)
 
     base_type = _base_type(field_type)
     if _is_struct_type(base_type, types):
         if not isinstance(value, dict):
-            raise Web3Error(f"typedData 对象字段格式无效: {base_type}")
+            raise Web3Error("typedData 对象字段格式无效: {}".format(base_type))
         return keccak256(_encode_data(base_type, value, types))
     return _encode_primitive(field_type, value)
 
@@ -985,7 +1307,7 @@ def _encode_data(primary_type: str, data: Dict[str, Any], types: Dict[str, List[
         name = _field_name(field)
         field_type = _field_type(field)
         if name not in data:
-            raise Web3Error(f"typedData 缺少字段: {name}")
+            raise Web3Error("typedData 缺少字段: {}".format(name))
         encoded.extend(_encode_value(field_type, data[name], types))
     return bytes(encoded)
 
@@ -1009,8 +1331,8 @@ def _derive_primary_type(types: Dict[str, List[Dict[str, Any]]]) -> str:
 def typed_data_hash(typed_data_json: str) -> bytes:
     try:
         typed_obj = json.loads(typed_data_json)
-    except Exception as exc:
-        raise Web3Error("typedData 解析失败: message 不是合法 JSON") from exc
+    except Exception:
+        raise Web3Error("typedData 解析失败: message 不是合法 JSON")
 
     if not isinstance(typed_obj, dict):
         raise Web3Error("typedData 解析失败: 顶层必须是 JSON 对象")
@@ -1018,7 +1340,7 @@ def typed_data_hash(typed_data_json: str) -> bytes:
     types_raw = typed_obj.get("types") or {}
     if not isinstance(types_raw, dict) or not types_raw:
         raise Web3Error("typedData 解析失败: 缺少 types")
-    types: Dict[str, List[Dict[str, Any]]] = {
+    types = {
         key: list(value) if isinstance(value, list) else value for key, value in types_raw.items()
     }
 
@@ -1057,7 +1379,7 @@ def _normalize_recovery_id(rec_id: int) -> int:
         return rec_id
     if 2 <= rec_id <= 3:
         return rec_id % 2
-    raise Web3Error(f"非法 recovery id: {rec_id}")
+    raise Web3Error("非法 recovery id: {}".format(rec_id))
 
 
 def build_eth_signature_bytes(rec_id: int, r: int, s: int) -> bytes:
@@ -1069,7 +1391,7 @@ def build_eth_message_signature_hex(rec_id: int, r: int, s: int) -> str:
     normalized = _normalize_recovery_id(rec_id)
     v = 27 + normalized
     signature = _int_to_fixed_bytes(r, 32) + _int_to_fixed_bytes(s, 32) + bytes([v & 0xFF])
-    return _ensure_hex_prefix(signature.hex())
+    return _ensure_hex_prefix(_bytes_hex(signature))
 
 
 def _int_to_fixed_bytes(value: int, size: int) -> bytes:
@@ -1077,7 +1399,7 @@ def _int_to_fixed_bytes(value: int, size: int) -> bytes:
     if len(raw) > size and raw[0] == 0:
         raw = raw[1:]
     if len(raw) > size:
-        raise Web3Error(f"Integer does not fit in {size} bytes")
+        raise Web3Error("Integer does not fit in {} bytes".format(size))
     return b"\x00" * (size - len(raw)) + raw
 
 
@@ -1108,7 +1430,7 @@ def sign_digest_at_path(root_key: bip32.HDKey, derivation_path: str, digest: byt
 
 def personal_sign_hash(message: str | bytes) -> bytes:
     message_bytes = decode_personal_message(message)
-    prefix = f"\x19Ethereum Signed Message:\n{len(message_bytes)}".encode("utf-8")
+    prefix = "\x19Ethereum Signed Message:\n{}".format(len(message_bytes)).encode("utf-8")
     return keccak256(prefix + message_bytes)
 
 
@@ -1198,7 +1520,7 @@ def _rlp_decode_at(payload: bytes, offset: int) -> Tuple[Any, int]:
 
 
 def _rlp_decode_list(payload: bytes, start: int, end: int) -> List[Any]:
-    values: List[Any] = []
+    values = []
     cursor = start
     while cursor < end:
         item, cursor = _rlp_decode_at(payload, cursor)
@@ -1218,13 +1540,13 @@ def _rlp_decode(payload: bytes) -> Any:
 def _rlp_require_bytes(value: Any, label: str) -> bytes:
     if isinstance(value, (bytes, bytearray)):
         return bytes(value)
-    raise Web3Error(f"{label} 不是字节串")
+    raise Web3Error("{} 不是字节串".format(label))
 
 
 def _rlp_require_list(value: Any, label: str) -> List[Any]:
     if isinstance(value, list):
         return value
-    raise Web3Error(f"{label} 不是列表")
+    raise Web3Error("{} 不是列表".format(label))
 
 
 def _rlp_quantity(value: Any) -> int:
@@ -1239,8 +1561,8 @@ def _parse_quantity(value: Any, label: str) -> int:
         return 0
     try:
         return _coerce_int(value)
-    except Exception as exc:
-        raise Web3Error(f"{label} 格式无效") from exc
+    except Exception:
+        raise Web3Error("{} 格式无效".format(label))
 
 
 def _parse_optional_quantity(value: Any, label: str) -> Optional[int]:
@@ -1262,9 +1584,9 @@ def _parse_hex_bytes(value: Any, label: str) -> bytes:
             return b""
         try:
             return _hex_to_bytes(text)
-        except Exception as exc:
-            raise Web3Error(f"{label} 不是合法十六进制") from exc
-    raise Web3Error(f"{label} 格式无效")
+        except Exception:
+            raise Web3Error("{} 不是合法十六进制".format(label))
+    raise Web3Error("{} 格式无效".format(label))
 
 
 def _parse_eth_address_bytes(value: Any, label: str) -> Optional[bytes]:
@@ -1276,10 +1598,10 @@ def _parse_eth_address_bytes(value: Any, label: str) -> Optional[bytes]:
         return None
     try:
         raw = _hex_to_bytes(normalized)
-    except Exception as exc:
-        raise Web3Error(f"{label} 不是合法地址") from exc
+    except Exception:
+        raise Web3Error("{} 不是合法地址".format(label))
     if len(raw) != 20:
-        raise Web3Error(f"{label} 长度不正确")
+        raise Web3Error("{} 长度不正确".format(label))
     return raw
 
 
@@ -1289,7 +1611,7 @@ def _parse_access_list_json(value: Any) -> List[EvmAccessListEntry]:
     if not isinstance(value, (list, tuple)):
         raise Web3Error("accessList 格式无效")
 
-    entries: List[EvmAccessListEntry] = []
+    entries = []
     for item in value:
         if not isinstance(item, dict):
             raise Web3Error("accessList 条目格式无效")
@@ -1305,7 +1627,7 @@ def _parse_access_list_json(value: Any) -> List[EvmAccessListEntry]:
 
 
 def _parse_access_list_rlp(value: Any) -> List[EvmAccessListEntry]:
-    entries: List[EvmAccessListEntry] = []
+    entries = []
     for item in _rlp_require_list(value, "accessList"):
         entry = _rlp_require_list(item, "accessList entry")
         if len(entry) != 2:
@@ -1334,7 +1656,7 @@ def _parse_tx_type(value: Any) -> int:
         text = value.strip()
         if not text:
             return 0
-        if text.startswith(("0x", "0X")):
+        if _starts_with_any(text, ("0x", "0X")):
             return int(text[2:] or "0", 16)
         return int(text, 10)
     raise Web3Error("交易 type 格式无效")
@@ -1343,7 +1665,7 @@ def _parse_tx_type(value: Any) -> int:
 def _parse_tp_transaction_request(tx_data: Dict[str, Any], chain_id: int) -> EvmUnsignedTransaction:
     tx_type = _parse_tx_type(tx_data.get("type"))
     if tx_type not in (0, 1, 2):
-        raise Web3Error(f"暂不支持的交易类型: {tx_type}")
+        raise Web3Error("暂不支持的交易类型: {}".format(tx_type))
 
     nonce = _parse_quantity(tx_data.get("nonce"), "nonce")
     gas_limit = _parse_quantity(
@@ -1444,7 +1766,7 @@ def _parse_unsigned_transaction_bytes(
                 max_fee_per_gas=_rlp_quantity(values[3]),
                 access_list=_parse_access_list_rlp(values[8]),
             )
-        raise Web3Error(f"当前暂不支持的 typed transaction 类型: 0x{tx_type:02x}")
+        raise Web3Error("当前暂不支持的 typed transaction 类型: 0x{:02x}".format(tx_type))
 
     raise Web3Error("当前请求不是交易类型")
 
@@ -1499,7 +1821,7 @@ def _encode_unsigned_transaction(tx: EvmUnsignedTransaction) -> bytes:
         ]
         return b"\x02" + _rlp_encode_list(fields)
 
-    raise Web3Error(f"暂不支持的交易类型: {tx.tx_type}")
+    raise Web3Error("暂不支持的交易类型: {}".format(tx.tx_type))
 
 
 def _encode_signed_transaction(tx: EvmUnsignedTransaction, rec_id: int, r: int, s: int) -> bytes:
@@ -1552,7 +1874,7 @@ def _encode_signed_transaction(tx: EvmUnsignedTransaction, rec_id: int, r: int, 
         ]
         return b"\x02" + _rlp_encode_list(fields)
 
-    raise Web3Error(f"暂不支持的交易类型: {tx.tx_type}")
+    raise Web3Error("暂不支持的交易类型: {}".format(tx.tx_type))
 
 
 def _transaction_type_label(tx_type: int) -> str:
@@ -1562,7 +1884,7 @@ def _transaction_type_label(tx_type: int) -> str:
         return "EIP-2930"
     if tx_type == 2:
         return "EIP-1559"
-    return f"0x{tx_type:02x}"
+    return "0x{:02x}".format(tx_type)
 
 
 # -----------------------------
@@ -1571,7 +1893,7 @@ def _transaction_type_label(tx_type: int) -> str:
 
 
 def normalize_action(action: str) -> str:
-    return action.lower().translate({ord(char): None for char in "-_ " if char})
+    return "".join(char for char in action.lower() if char not in "-_ ")
 
 
 def _parse_optional_chain_id(raw: Any) -> Optional[int]:
@@ -1582,7 +1904,7 @@ def _parse_optional_chain_id(raw: Any) -> Optional[int]:
         if not text:
             return None
         value = text.split(":")[-1]
-        if value.startswith(("0x", "0X")):
+        if _starts_with_any(value, ("0x", "0X")):
             return int(value[2:] or "0", 16)
         return int(value, 10)
     if isinstance(raw, bool):
@@ -1593,7 +1915,7 @@ def _parse_optional_chain_id(raw: Any) -> Optional[int]:
         text = str(raw).strip()
         if not text:
             return None
-        if text.startswith(("0x", "0X")):
+        if _starts_with_any(text, ("0x", "0X")):
             return int(text[2:] or "0", 16)
         return int(text, 10)
     except Exception:
@@ -1601,7 +1923,7 @@ def _parse_optional_chain_id(raw: Any) -> Optional[int]:
 
 
 def _parse_query(query_raw: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
+    out = {}
     marker = query_raw.find("data=")
     if marker >= 0:
         before = query_raw[:marker]
@@ -1624,14 +1946,34 @@ def _parse_query(query_raw: str) -> Dict[str, str]:
 
 def _smart_decode(value: str) -> str:
     try:
-        return urllib.parse.unquote(value)
+        return _url_unquote(value)
     except Exception:
         return value
 
 
+def _url_unquote(value: str) -> str:
+    data = bytearray()
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if char == "%" and index + 2 < len(value):
+            try:
+                data.append(int(value[index + 1 : index + 3], 16))
+                index += 3
+                continue
+            except Exception:
+                pass
+        if char == "+":
+            data.append(32)
+        else:
+            data.extend(char.encode("utf-8"))
+        index += 1
+    return bytes(data).decode("utf-8")
+
+
 def _extract_typed_data_json(message_element: Any) -> str:
     if isinstance(message_element, (dict, list)):
-        text = json.dumps(message_element, ensure_ascii=False, separators=(",", ":"))
+        text = _json_dumps_compact(message_element)
     elif isinstance(message_element, str):
         text = message_element.strip()
     else:
@@ -1642,8 +1984,8 @@ def _extract_typed_data_json(message_element: Any) -> str:
 
     try:
         json.loads(text)
-    except Exception as exc:
-        raise Web3Error("typedData message 不是合法 JSON") from exc
+    except Exception:
+        raise Web3Error("typedData message 不是合法 JSON")
     return text
 
 
@@ -1658,15 +2000,17 @@ def _parse_request_context(raw: str) -> Tuple[str, str, str, Dict[str, str], Dic
     if not namespace or not action:
         raise Web3Error("协议前缀不合法")
 
-    query_raw = raw[dash + 1 :].removeprefix("?")
+    query_raw = raw[dash + 1 :]
+    if query_raw.startswith("?"):
+        query_raw = query_raw[1:]
     params = _parse_query(query_raw)
     data_raw = params.get("data")
     if data_raw is None:
         raise Web3Error("缺少 data 字段")
     try:
         data_json = json.loads(data_raw)
-    except Exception as exc:
-        raise Web3Error("data JSON 无效") from exc
+    except Exception:
+        raise Web3Error("data JSON 无效")
     if not isinstance(data_json, dict):
         raise Web3Error("data JSON 必须是对象")
     return namespace, action, data_raw, params, data_json
@@ -1691,7 +2035,7 @@ def parse_tp_multi_fragment(raw: str) -> TpMultiFragment:
     try:
         data = json.loads(data_raw)
     except Exception as exc:
-        raise Web3Error(f"分片 data JSON 无效: {exc}") from exc
+        raise Web3Error("分片 data JSON 无效: {}".format(exc))
     if not isinstance(data, dict):
         raise Web3Error("分片 data JSON 必须是对象")
 
@@ -1711,29 +2055,162 @@ def parse_tp_multi_fragment(raw: str) -> TpMultiFragment:
 
 
 def _decode_relay_base64(encoded: str) -> bytes:
-    normalized = encoded.replace("-", "+").replace("_", "/")
+    normalized = "".join(str(encoded or "").split())
+    lowered = normalized.lower()
+    if lowered.startswith("data:"):
+        comma = normalized.rfind(",")
+        if comma >= 0:
+            normalized = normalized[comma + 1 :]
+    normalized = normalized.replace("-", "+").replace("_", "/")
     padding = len(normalized) % 4
     if padding:
         normalized += "=" * (4 - padding)
     try:
         return a2b_base64(normalized)
-    except Exception as exc:
-        raise Web3Error("中转二维码 Base64 解码失败") from exc
+    except Exception:
+        raise Web3Error("中转二维码 Base64 解码失败")
+
+
+def _looks_like_relay_text(text: str) -> bool:
+    lowered = text.strip().lower()
+    return _starts_with_any(
+        lowered,
+        (
+            "tp:",
+            "ur:",
+            "{",
+            "[",
+            "ethereum:",
+            "wc:",
+        ),
+    )
+
+
+def _relay_text_candidates(text: str) -> List[str]:
+    candidates = []
+    current = str(text or "").strip()
+    for _ in range(3):
+        if current and current not in candidates:
+            candidates.append(current)
+            if (
+                len(current) >= 2
+                and (
+                    (current[0] == '"' and current[-1] == '"')
+                    or (current[0] == "'" and current[-1] == "'")
+                )
+            ):
+                unquoted = current[1:-1].strip()
+                if unquoted and unquoted not in candidates:
+                    candidates.append(unquoted)
+        decoded = _smart_decode(current).strip()
+        if decoded == current:
+            break
+        current = decoded
+    return candidates
+
+
+def _relay_base64_candidates(encoded: str) -> List[str]:
+    candidates = []
+    for text in _relay_text_candidates(str(encoded or "")):
+        cleaned = "".join(text.split())
+        if cleaned and cleaned not in candidates:
+            candidates.append(cleaned)
+        lowered = cleaned.lower()
+        if lowered.startswith("base64,"):
+            payload = cleaned[7:]
+            if payload and payload not in candidates:
+                candidates.append(payload)
+        comma = cleaned.rfind(",")
+        if lowered.startswith("data:") and comma >= 0:
+            payload = cleaned[comma + 1 :]
+            if payload and payload not in candidates:
+                candidates.append(payload)
+        for marker in ("data=", "payload=", "content="):
+            pos = lowered.find(marker)
+            if pos >= 0:
+                payload = cleaned[pos + len(marker) :]
+                separator = payload.find("&")
+                if separator >= 0:
+                    payload = payload[:separator]
+                if payload and payload not in candidates:
+                    candidates.append(payload)
+    return candidates
+
+
+def _decode_relay_text_bytes(raw: bytes) -> Optional[str]:
+    for encoding in ("utf-8", "utf-16", "utf-16-le", "utf-16-be"):
+        try:
+            text = raw.decode(encoding).strip()
+            for candidate in _relay_text_candidates(text):
+                if _looks_like_relay_text(candidate):
+                    return candidate
+        except Exception:
+            pass
+    return None
+
+
+def _gzip_decompress(compressed: bytes) -> bytes:
+    if len(compressed) < 18 or compressed[0] != 0x1F or compressed[1] != 0x8B:
+        raise Web3Error("不是 gzip 数据")
+    if compressed[2] != 8:
+        raise Web3Error("gzip 压缩方式不支持")
+
+    flags = compressed[3]
+    index = 10
+    if flags & 4:
+        if index + 2 > len(compressed):
+            raise Web3Error("gzip 扩展头无效")
+        extra_len = compressed[index] | (compressed[index + 1] << 8)
+        index += 2 + extra_len
+    if flags & 8:
+        while index < len(compressed) and compressed[index] != 0:
+            index += 1
+        index += 1
+    if flags & 16:
+        while index < len(compressed) and compressed[index] != 0:
+            index += 1
+        index += 1
+    if flags & 2:
+        index += 2
+    if index >= len(compressed) - 8:
+        raise Web3Error("gzip 内容为空")
+
+    return _raw_deflate_decompress(compressed[index:-8])
 
 
 def _inflate_relay_text(encoded: str) -> str:
-    compressed = _decode_relay_base64(encoded)
-    try:
-        raw = zlib.decompress(compressed)
-    except Exception:
+    for plain_text in _relay_text_candidates(str(encoded or "")):
+        if _looks_like_relay_text(plain_text):
+            return plain_text
+
+    for candidate in _relay_base64_candidates(encoded):
         try:
-            raw = zlib.decompress(compressed, -15)
-        except Exception as exc:
-            raise Web3Error("中转二维码解压失败") from exc
-    try:
-        return raw.decode("utf-8")
-    except Exception as exc:
-        raise Web3Error("中转二维码文本解码失败") from exc
+            compressed = _decode_relay_base64(candidate)
+        except Web3Error:
+            continue
+
+        decoded_text = _decode_relay_text_bytes(compressed)
+        if decoded_text is not None:
+            return decoded_text
+
+        for decompressor in (
+            _deflateio_decompress_auto,
+            _gzip_decompress_with_zlib,
+            _zlib_decompress,
+            _deflateio_decompress_zlib,
+            lambda data: _zlib_decompress(data, raw=True),
+            _deflateio_decompress_raw,
+            _gzip_decompress,
+            _deflateio_decompress_gzip,
+        ):
+            try:
+                raw = decompressor(compressed)
+            except Exception:
+                continue
+            decoded_text = _decode_relay_text_bytes(raw)
+            if decoded_text is not None:
+                return decoded_text
+    raise Web3Error("中转二维码解压失败")
 
 
 def inflate_relay_text(encoded: str) -> str:
@@ -1760,8 +2237,8 @@ def parse_relay_fragment(raw: str) -> RelayFragment:
     try:
         index = int(body[:slash])
         total = int(body[slash + 1 : first_dot])
-    except Exception as exc:
-        raise Web3Error("中转分片序号无效") from exc
+    except Exception:
+        raise Web3Error("中转分片序号无效")
 
     crc32 = body[first_dot + 1 : second_dot].strip()
     chunk = body[second_dot + 1 :].strip()
@@ -1788,8 +2265,8 @@ def decode_relay_payload(raw: str) -> Tuple[str, str]:
 def parse_web3_relay_envelope(payload: str) -> Web3RelayEnvelope:
     try:
         data = json.loads(payload)
-    except Exception as exc:
-        raise Web3Error("链上中转包 JSON 无效") from exc
+    except Exception:
+        raise Web3Error("链上中转包 JSON 无效")
     if not isinstance(data, dict):
         raise Web3Error("链上中转包必须是对象")
 
@@ -1898,7 +2375,7 @@ def parse_tp_request(raw: str) -> TpParsedRequest:
             tx_data = data_json
         tx_type = _parse_tx_type(_primitive_content_or_null(tx_data.get("type")))
         if tx_type not in (0, 1, 2):
-            raise Web3Error(f"暂不支持的交易类型: {tx_type}")
+            raise Web3Error("暂不支持的交易类型: {}".format(tx_type))
         address = _first_non_blank(
             _primitive_content_or_null(data_json.get("address")),
             _primitive_content_or_null(tx_data.get("from")) if isinstance(tx_data, dict) else None,
@@ -2018,7 +2495,7 @@ def _primitive_content_or_null(value: Any) -> Optional[str]:
         text = _maybe_text(bytes(value))
         if text is not None:
             return text
-        return bytes(value).hex()
+        return _bytes_hex(value)
     return str(value)
 
 
@@ -2027,6 +2504,281 @@ def _first_non_blank(*values: Optional[str]) -> Optional[str]:
         if value is not None and value.strip():
             return value.strip()
     return None
+
+
+def _looks_like_eth_address(value: Any) -> bool:
+    text = _primitive_content_or_null(value)
+    if text is None:
+        return False
+    clean = _clean_hex_prefix(text.strip())
+    if len(clean) != 40:
+        return False
+    for char in clean:
+        if char not in "0123456789abcdefABCDEF":
+            return False
+    return True
+
+
+def _json_rpc_params(params: Any) -> Any:
+    if isinstance(params, dict):
+        return params
+    if isinstance(params, (list, tuple)):
+        return list(params)
+    if params is None:
+        return []
+    return [params]
+
+
+def _json_rpc_param(params: Any, key: str, index: int = 0) -> Any:
+    if isinstance(params, dict):
+        return params.get(key)
+    return None
+
+
+def _json_rpc_chain_id(
+    data: Dict[str, Any],
+    params: Any,
+    tx_data: Optional[Dict[str, Any]] = None,
+) -> int:
+    candidates = [
+        data.get("chainId"),
+        data.get("chain_id"),
+        data.get("chain"),
+        _json_rpc_param(params, "chainId"),
+        _json_rpc_param(params, "chain_id"),
+    ]
+    if isinstance(tx_data, dict):
+        candidates.extend([tx_data.get("chainId"), tx_data.get("chain_id")])
+    for candidate in candidates:
+        parsed = _parse_optional_chain_id(candidate)
+        if parsed is not None:
+            return parsed
+    return 1
+
+
+def _json_rpc_origin(data: Dict[str, Any], params: Any) -> Optional[str]:
+    return _first_non_blank(
+        _primitive_content_or_null(data.get("origin")),
+        _primitive_content_or_null(data.get("source")),
+        _primitive_content_or_null(data.get("dappName")),
+        _primitive_content_or_null(data.get("name")),
+        _primitive_content_or_null(data.get("url")),
+        _primitive_content_or_null(_json_rpc_param(params, "origin")),
+        _primitive_content_or_null(_json_rpc_param(params, "source")),
+        _primitive_content_or_null(_json_rpc_param(params, "dappName")),
+    )
+
+
+def _json_rpc_request_id(data: Dict[str, Any]) -> Optional[str]:
+    return _parse_request_id_text(
+        data.get("requestId")
+        if data.get("requestId") is not None
+        else data.get("id")
+    )
+
+
+def _json_rpc_tp_request(
+    raw: str,
+    action: str,
+    kind: str,
+    chain_id: int,
+    request_id: Optional[str],
+    origin: Optional[str],
+    address: Optional[str],
+    message: Optional[str] = None,
+    typed_data_json: Optional[str] = None,
+    tx_data: Optional[Dict[str, Any]] = None,
+) -> TpParsedRequest:
+    return TpParsedRequest(
+        raw_payload=raw,
+        namespace="tp",
+        action=action,
+        request_format="modern",
+        version="1.0",
+        protocol="ArbitrumWallet",
+        network="ethereum",
+        chain_id=chain_id,
+        request_id=request_id,
+        action_id=request_id,
+        data_id=request_id,
+        dapp_name=origin,
+        dapp_url=None,
+        dapp_source=origin,
+        address=address,
+        kind=kind,
+        message=message,
+        typed_data_json=typed_data_json,
+        tx_data=tx_data,
+    )
+
+
+def parse_json_rpc_web3_request(payload: str) -> Web3Request:
+    """Parse common Ethereum JSON-RPC signing requests scanned from wallets."""
+    try:
+        data = json.loads(payload)
+    except Exception:
+        raise Web3Error("JSON-RPC 请求不是合法 JSON")
+    if not isinstance(data, dict):
+        raise Web3Error("JSON-RPC 请求必须是对象")
+
+    method = _primitive_content_or_null(data.get("method") or data.get("action"))
+    if method is None:
+        raise Web3Error("JSON-RPC 请求缺少 method")
+    normalized_method = normalize_action(method)
+    params = _json_rpc_params(data.get("params", data.get("parameters")))
+    origin = _json_rpc_origin(data, params)
+    request_id = _json_rpc_request_id(data)
+    derivation_path = _normalize_path(
+        _first_non_blank(
+            _primitive_content_or_null(data.get("address_path")),
+            _primitive_content_or_null(data.get("addressPath")),
+            _primitive_content_or_null(data.get("derivation_path")),
+            _primitive_content_or_null(_json_rpc_param(params, "path")),
+            _primitive_content_or_null(_json_rpc_param(params, "addressPath")),
+        )
+    )
+
+    if normalized_method in TRANSACTION_ACTIONS:
+        tx_data = _json_rpc_param(params, "txData")
+        if not isinstance(tx_data, dict):
+            tx_data = _json_rpc_param(params, "transaction")
+        if not isinstance(tx_data, dict) and isinstance(params, list) and params:
+            tx_data = params[0]
+        if not isinstance(tx_data, dict):
+            raise Web3Error("JSON-RPC 交易请求缺少交易对象")
+        tx_type = _parse_tx_type(tx_data.get("type"))
+        chain_id = _json_rpc_chain_id(data, params, tx_data)
+        address = _first_non_blank(
+            _primitive_content_or_null(tx_data.get("from")),
+            _primitive_content_or_null(tx_data.get("fromAddress")),
+            _primitive_content_or_null(data.get("address")),
+        )
+        normalized_address = normalize_eth_address(address) if address else None
+        kind = "typed_transaction" if tx_type in (1, 2) else "transaction"
+        data_type = (
+            Web3RequestDataType.TYPED_TRANSACTION
+            if kind == "typed_transaction"
+            else Web3RequestDataType.TRANSACTION
+        )
+        tp_request = _json_rpc_tp_request(
+            payload,
+            "signTransaction",
+            kind,
+            chain_id,
+            request_id,
+            origin,
+            normalized_address,
+            tx_data=tx_data,
+        )
+        return Web3Request(
+            source_format="json-rpc",
+            data_type=data_type,
+            chain_id=chain_id,
+            derivation_path=derivation_path,
+            address=normalized_address,
+            origin=origin,
+            request_id_value=request_id,
+            request_id_text=request_id,
+            sign_data=_json_dumps_compact(tx_data).encode("utf-8"),
+            raw_payload=payload,
+            tp_request=tp_request,
+        )
+
+    if normalized_method in PERSONAL_ACTIONS:
+        if isinstance(params, dict):
+            address = _first_non_blank(
+                _primitive_content_or_null(params.get("address")),
+                _primitive_content_or_null(params.get("account")),
+            )
+            message_value = params.get("message", params.get("data"))
+        else:
+            first = params[0] if len(params) > 0 else None
+            second = params[1] if len(params) > 1 else None
+            if normalized_method == "ethsign" or _looks_like_eth_address(first):
+                address = _primitive_content_or_null(first)
+                message_value = second
+            else:
+                message_value = first
+                address = _primitive_content_or_null(second)
+        message_text = _primitive_content_or_null(message_value)
+        if message_text is None:
+            raise Web3Error("JSON-RPC personal_sign 缺少消息")
+        normalized_address = normalize_eth_address(address) if address else None
+        chain_id = _json_rpc_chain_id(data, params)
+        tp_request = _json_rpc_tp_request(
+            payload,
+            "personalSign",
+            "personal_message",
+            chain_id,
+            request_id,
+            origin,
+            normalized_address,
+            message=message_text,
+        )
+        return Web3Request(
+            source_format="json-rpc",
+            data_type=Web3RequestDataType.PERSONAL_MESSAGE,
+            chain_id=chain_id,
+            derivation_path=derivation_path,
+            address=normalized_address,
+            origin=origin,
+            request_id_value=request_id,
+            request_id_text=request_id,
+            sign_data=decode_personal_message(message_text),
+            raw_payload=payload,
+            message_text=message_text,
+            tp_request=tp_request,
+        )
+
+    if normalized_method in TYPED_DATA_ACTIONS:
+        if isinstance(params, dict):
+            address = _first_non_blank(
+                _primitive_content_or_null(params.get("address")),
+                _primitive_content_or_null(params.get("account")),
+            )
+            typed_value = params.get("message", params.get("typedData"))
+        else:
+            first = params[0] if len(params) > 0 else None
+            second = params[1] if len(params) > 1 else None
+            if _looks_like_eth_address(first):
+                address = _primitive_content_or_null(first)
+                typed_value = second
+            else:
+                typed_value = first
+                address = _primitive_content_or_null(second)
+        typed_data_json = _extract_typed_data_json(typed_value)
+        chain_id = (
+            _json_rpc_chain_id(data, params)
+            or _typed_data_domain_chain_id(typed_data_json)
+            or 1
+        )
+        normalized_address = normalize_eth_address(address) if address else None
+        tp_request = _json_rpc_tp_request(
+            payload,
+            "signTypedData_v4",
+            "typed_data",
+            chain_id,
+            request_id,
+            origin,
+            normalized_address,
+            typed_data_json=typed_data_json,
+        )
+        return Web3Request(
+            source_format="json-rpc",
+            data_type=Web3RequestDataType.TYPED_DATA,
+            chain_id=chain_id,
+            derivation_path=derivation_path,
+            address=normalized_address,
+            origin=origin,
+            request_id_value=request_id,
+            request_id_text=request_id,
+            sign_data=typed_data_json.encode("utf-8"),
+            raw_payload=payload,
+            typed_data_json=typed_data_json,
+            tp_request=tp_request,
+        )
+
+    raise Web3Error("当前仅支持 signTransaction / personalSign / signTypedData")
 
 
 def parse_ur_eth_sign_request(ur: UR, raw_payload: Optional[str] = None) -> Web3Request:
@@ -2064,7 +2816,7 @@ def parse_ur_eth_sign_request(ur: UR, raw_payload: Optional[str] = None) -> Web3
         request_id_value=request_id_value,
         request_id_text=request_id_text,
         sign_data=sign_data,
-        raw_payload=raw_payload or f"ur:{ur.type}",
+        raw_payload=raw_payload or "ur:{}".format(ur.type),
         message_text=message_text,
         typed_data_json=typed_data_json,
         tp_request=None,
@@ -2081,7 +2833,7 @@ def parse_web3_request(payload: Any, qr_format: Optional[int] = None) -> Web3Req
         text = str(payload)
     normalized = text.strip()
 
-    if normalized.lower().startswith((RELAY_TP_PREFIX, RELAY_WEB3_PREFIX)):
+    if _starts_with_any(normalized.lower(), (RELAY_TP_PREFIX, RELAY_WEB3_PREFIX)):
         relay_prefix, relay_text = decode_relay_payload(normalized)
         if relay_prefix == RELAY_TP_PREFIX:
             tp_request = parse_tp_request(relay_text)
@@ -2104,8 +2856,16 @@ def parse_web3_request(payload: Any, qr_format: Optional[int] = None) -> Web3Req
         tp_request = parse_tp_request(normalized)
         return _tp_request_to_web3_request(tp_request, normalized)
     if normalized.startswith("{"):
-        relay = parse_web3_relay_envelope(normalized)
-        return _relay_envelope_to_web3_request(relay, normalized)
+        try:
+            relay = parse_web3_relay_envelope(normalized)
+            return _relay_envelope_to_web3_request(relay, normalized)
+        except Web3Error as relay_error:
+            try:
+                return parse_json_rpc_web3_request(normalized)
+            except Web3Error as json_error:
+                if "JSON-RPC" in str(json_error):
+                    raise json_error
+                raise relay_error
 
     if qr_format is not None and qr_format == 2:
         return parse_ur_eth_sign_request(URDecoder.decode(normalized), normalized)
@@ -2141,9 +2901,7 @@ def _tp_request_to_web3_request(
         if tp_request.kind == "personal_message"
         else tp_request.typed_data_json.encode("utf-8")
         if tp_request.kind == "typed_data" and tp_request.typed_data_json
-        else json.dumps(
-            tp_request.tx_data or {}, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
+        else _json_dumps_compact(tp_request.tx_data or {}).encode("utf-8")
     )
     return Web3Request(
         source_format=source_format,
@@ -2211,23 +2969,17 @@ def _relay_envelope_to_web3_request(
 
 def build_tp_signature_response(request: TpParsedRequest, signature_hex: str, signer_address: str) -> str:
     if request.kind in {"transaction", "typed_transaction"}:
-        response_data_obj: Dict[str, Any] = {"rawTransaction": signature_hex}
+        response_data_obj = {"rawTransaction": signature_hex}
         response_id = request.action_id or request.data_id
         if response_id:
             response_data_obj["id"] = response_id
-        response_data = json.dumps(
-            response_data_obj,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        response_data = _json_dumps_compact(response_data_obj)
     else:
-        response_data = json.dumps(
-            {"signature": signature_hex, "address": signer_address},
-            ensure_ascii=False,
-            separators=(",", ":"),
+        response_data = _json_dumps_compact(
+            {"signature": signature_hex, "address": signer_address}
         )
 
-    response_action = f"{request.action}Signature"
+    response_action = "{}Signature".format(request.action)
     if request.request_format == "legacy":
         query = _build_query(
             [
@@ -2238,7 +2990,7 @@ def build_tp_signature_response(request: TpParsedRequest, signature_hex: str, si
                 ("data", response_data),
             ]
         )
-        return f"{request.namespace}:{response_action}-?{query}"
+        return "{}:{}-?{}".format(request.namespace, response_action, query)
 
     query = _build_query(
         [
@@ -2250,7 +3002,7 @@ def build_tp_signature_response(request: TpParsedRequest, signature_hex: str, si
             ("data", response_data),
         ]
     )
-    return f"{request.namespace}:{response_action}-{query}"
+    return "{}:{}-{}".format(request.namespace, response_action, query)
 
 
 def _build_query(values: Sequence[Tuple[str, Optional[str]]]) -> str:
@@ -2261,7 +3013,7 @@ def _build_query(values: Sequence[Tuple[str, Optional[str]]]) -> str:
         text = str(value)
         if not text.strip():
             continue
-        pieces.append(f"{key}={text}")
+        pieces.append("{}={}".format(key, text))
     return "&".join(pieces)
 
 
@@ -2277,14 +3029,19 @@ def build_tp_multi_fragment_request(raw: str) -> Tuple[bool, Optional[TpMultiFra
 # -----------------------------
 
 
-def _ur_pages(ur: UR, max_fragment_len: int, first_seq_num: int = 10) -> List[str]:
+def _ur_pages(
+    ur: UR,
+    max_fragment_len: int,
+    first_seq_num: int = 0,
+    redundancy_rounds: int = 2,
+) -> List[str]:
     encoder = UREncoder(ur, max_fragment_len, first_seq_num)
     if encoder.is_single_part():
         return [UREncoder.encode(ur).upper()]
 
-    pages: List[str] = []
+    pages = []
     seq_len = encoder.fountain_encoder.seq_len()
-    for _ in range(seq_len):
+    for _ in range(seq_len * max(1, redundancy_rounds)):
         pages.append(encoder.next_part().upper())
     return pages
 
@@ -2318,16 +3075,19 @@ def _pubkey_fingerprint(pubkey_sec: bytes) -> bytes:
 
 
 def _device_serial_from_account(account: Web3AccountInfo) -> str:
-    return f"tp-keystone-{account.master_fingerprint_hex.lower()}-{account.address.lower()}"
+    return "tp-keystone-{}-{}".format(
+        account.master_fingerprint_hex.lower(),
+        account.address.lower(),
+    )
 
 
 def _web3_device_id(account: Web3AccountInfo, wallet_profile: str) -> str:
     profile = _normalize_wallet_profile(wallet_profile)
     serial = _device_serial_from_account(account)
     if profile == WEB3_WALLET_PROFILE_OKX:
-        serial = f"keystone{serial}"
-        return hashlib.sha256(hashlib.sha256(serial.encode("utf-8")).digest()).hexdigest()[:40]
-    return hashlib.sha256(hashlib.sha256(serial.encode("utf-8")).digest()).digest()[:20].hex()
+        serial = "keystone{}".format(serial)
+        return _sha256_hex(_sha256(serial.encode("utf-8")))[:40]
+    return _bytes_hex(_sha256(_sha256(serial.encode("utf-8")))[:20])
 
 
 def _web3_keypath(path: str, source_fingerprint: Optional[bytes], depth: Optional[int], allow_wildcard: bool = False) -> Keypath:
@@ -2353,7 +3113,7 @@ def _web3_hdkey_entry(
     note: str = "",
     name: str = "Keystone",
 ) -> HDKey:
-    props: Dict[str, Any] = {
+    props = {
         "key": pubkey_sec,
         "origin": _web3_keypath(
             origin_path,
@@ -2387,13 +3147,13 @@ def _build_multi_accounts_bundle(account: Web3AccountInfo, wallet_profile: str) 
     profile = _normalize_wallet_profile(wallet_profile)
     master_fingerprint = account.master_fingerprint or b"\x00\x00\x00\x00"
     parent_pub = root.derive(bip32.parse_path(_path_parent(account.account_path))).to_public().sec()
-    key_items: List[DataItem] = []
+    key_items = []
     key_items.append(
-        DataItem(
-            HDKey.registry_type().tag,
-            _web3_hdkey_entry(
-                pubkey_sec=bytes.fromhex(account.compressed_pubkey_hex),
-                chain_code=bytes.fromhex(account.chain_code_hex),
+            DataItem(
+                HDKey.registry_type().tag,
+                _web3_hdkey_entry(
+                    pubkey_sec=_bytes_from_hex(account.compressed_pubkey_hex),
+                    chain_code=_bytes_from_hex(account.chain_code_hex),
                 origin_path=account.account_path,
                 master_fingerprint=master_fingerprint,
                 include_children=True,
@@ -2429,7 +3189,7 @@ def _build_multi_accounts_bundle(account: Web3AccountInfo, wallet_profile: str) 
 
     if profile == WEB3_WALLET_PROFILE_OKX:
         for index in range(WEB3_OKX_LEDGER_LIVE_ACCOUNT_COUNT):
-            ledger_path = f"m/44'/60'/{index}'/0/0"
+            ledger_path = "m/44'/60'/{}'/0/0".format(index)
             derived = root.derive(bip32.parse_path(ledger_path))
             key_items.append(
                 DataItem(
@@ -2450,7 +3210,7 @@ def _build_multi_accounts_bundle(account: Web3AccountInfo, wallet_profile: str) 
     if profile == WEB3_WALLET_PROFILE_BITGET:
         cbor = _encode_cbor(
             {
-                1: int(master_fingerprint.hex(), 16),
+                1: int(_bytes_hex(master_fingerprint), 16),
                 2: key_items,
                 3: WEB3_KEYSTONE_DEVICE_TYPE,
             }
@@ -2460,7 +3220,7 @@ def _build_multi_accounts_bundle(account: Web3AccountInfo, wallet_profile: str) 
 
     cbor = _encode_cbor(
         {
-            1: int(master_fingerprint.hex(), 16),
+            1: int(_bytes_hex(master_fingerprint), 16),
             2: key_items,
             3: WEB3_OKX_DEVICE_TYPE,
             4: _web3_device_id(account, profile),
@@ -2484,7 +3244,7 @@ def build_connect_qr_bundle(
 
     account_path = _normalize_path(account_path, DEFAULT_EVM_ACCOUNT_PATH)
     profile = _normalize_wallet_profile(wallet_profile)
-    address_path = _normalize_path(f"{account_path}/0/0", DEFAULT_EVM_ADDRESS_PATH)
+    address_path = _normalize_path("{}/0/0".format(account_path), DEFAULT_EVM_ADDRESS_PATH)
     account_hdkey = root.derive(bip32.parse_path(account_path))
     address_hdkey = root.derive(bip32.parse_path(address_path))
     address_pubkey = address_hdkey.to_public().get_public_key()
@@ -2503,9 +3263,9 @@ def build_connect_qr_bundle(
         address=address,
         display_address=display_address,
         master_fingerprint=master_fingerprint,
-        master_fingerprint_hex=master_fingerprint.hex(),
-        compressed_pubkey_hex=account_hdkey.to_public().sec().hex(),
-        chain_code_hex=account_hdkey.chain_code.hex(),
+        master_fingerprint_hex=_bytes_hex(master_fingerprint),
+        compressed_pubkey_hex=_bytes_hex(account_hdkey.to_public().sec()),
+        chain_code_hex=_bytes_hex(account_hdkey.chain_code),
         xpub=account_hdkey.to_public().to_base58(),
         origin_keypath=origin_keypath,
         children_keypath=children_keypath,
@@ -2514,6 +3274,9 @@ def build_connect_qr_bundle(
 
     if profile in {WEB3_WALLET_PROFILE_OKX, WEB3_WALLET_PROFILE_BITGET}:
         return _build_multi_accounts_bundle(account, profile)
+
+    if profile == WEB3_WALLET_PROFILE_TOKENPOCKET:
+        return Web3QrBundle(ur=None, pages=[display_address], text=display_address)
 
     hdkey = HDKey(
         {
@@ -2537,18 +3300,29 @@ def build_eth_signature_qr_bundle(
 ) -> Web3QrBundle:
     if len(signature_bytes) != 65:
         raise Web3Error("签名结果长度不正确")
-    map_data: Dict[int, Any] = {}
+    map_data = {}
     if request.request_id_value is not None:
         map_data[1] = request.request_id_value
     elif request.request_id_text:
         map_data[1] = request.request_id_text
     else:
-        map_data[1] = str(uuid.uuid4())
+        map_data[1] = _fallback_request_id(signature_bytes)
     map_data[2] = signature_bytes
     if origin and origin.strip():
         map_data[3] = origin.strip()
     ur = UR("eth-signature", _encode_cbor(map_data))
     return Web3QrBundle(ur=ur, pages=_ur_pages(ur, 260))
+
+
+def _fallback_request_id(seed: bytes) -> str:
+    digest = _sha256_hex(seed)
+    return "{}-{}-{}-{}-{}".format(
+        digest[:8],
+        digest[8:12],
+        digest[12:16],
+        digest[16:20],
+        digest[20:32],
+    )
 
 
 def build_request_summary(request: Web3Request) -> str:
@@ -2560,71 +3334,107 @@ def build_request_summary(request: Web3Request) -> str:
         except Exception:
             pass
     lines = [
-        f"来源: {origin}",
-        f"类型: {request.data_type.label()}",
-        f"链 ID: {request.chain_id}",
-        f"路径: {request.derivation_path}",
+        "来源: {}".format(origin),
+        "类型: {}".format(_web3_request_type_label(request.data_type)),
+        "链 ID: {}".format(request.chain_id),
+        "路径: {}".format(request.derivation_path),
     ]
     if request.relay_wallet_name:
-        lines.append(f"中转: {request.relay_wallet_name}")
+        lines.append("中转: {}".format(request.relay_wallet_name))
     if address:
-        lines.append(f"地址: {_shorten_middle(address)}")
+        lines.append("地址: {}".format(_shorten_middle(address)))
     if request.request_id_text:
-        lines.append(f"请求 ID: {request.request_id_text}")
+        lines.append("请求 ID: {}".format(request.request_id_text))
     if request.data_type in (
         Web3RequestDataType.TRANSACTION,
         Web3RequestDataType.TYPED_TRANSACTION,
     ):
         try:
             tx = _parse_web3_transaction_request(request)
-            to_text = "合约创建" if tx.to is None else _shorten_middle(_ensure_hex_prefix(tx.to.hex()))
+            to_text = (
+                "合约创建"
+                if tx.to is None
+                else _shorten_middle(_ensure_hex_prefix(_bytes_hex(tx.to)))
+            )
             lines.extend(
                 [
-                    f"交易: {_transaction_type_label(tx.tx_type)}",
-                    f"收款: {to_text}",
-                    f"金额(wei): {tx.value}",
-                    f"序号: {tx.nonce}  Gas 限额: {tx.gas_limit}",
+                    "交易: {}".format(_transaction_type_label(tx.tx_type)),
+                    "收款: {}".format(to_text),
+                    "金额(wei): {}".format(tx.value),
+                    "序号: {}  Gas 限额: {}".format(tx.nonce, tx.gas_limit),
                 ]
             )
             if tx.tx_type in (0, 1):
-                lines.append(f"Gas 价格: {tx.gas_price}")
+                lines.append("Gas 价格: {}".format(tx.gas_price))
             elif tx.tx_type == 2:
                 lines.append(
-                    f"优先费: {tx.max_priority_fee_per_gas}  上限: {tx.max_fee_per_gas}"
+                    "优先费: {}  上限: {}".format(
+                        tx.max_priority_fee_per_gas,
+                        tx.max_fee_per_gas,
+                    )
                 )
         except Web3Error as exc:
-            lines.append(f"交易摘要: {exc}")
+            lines.append("交易摘要: {}".format(exc))
     return "\n".join(lines)
 
 
 def build_connect_summary(account: Web3AccountInfo, wallet_profile: str = WEB3_WALLET_PROFILE_METAMASK) -> str:
     profile = _normalize_wallet_profile(wallet_profile)
     wallet_name = WEB3_WALLET_PROFILE_LABELS.get(profile, "链上钱包")
-    connect_mode = "多账户" if profile in {WEB3_WALLET_PROFILE_OKX, WEB3_WALLET_PROFILE_BITGET} else "单账户"
+    connect_mode = (
+        "多账户"
+        if profile in {WEB3_WALLET_PROFILE_OKX, WEB3_WALLET_PROFILE_BITGET}
+        else "地址导入"
+        if profile == WEB3_WALLET_PROFILE_TOKENPOCKET
+        else "单账户"
+    )
     return "\n".join(
         [
-            f"钱包: {wallet_name}",
-            f"连接: {connect_mode}",
-            f"地址: {_shorten_middle(account.display_address)}",
-            f"路径: {account.address_path}",
+            "钱包: {}".format(wallet_name),
+            "连接: {}".format(connect_mode),
+            "地址: {}".format(_shorten_middle(account.display_address)),
+            "路径: {}".format(account.address_path),
         ]
     )
 
 
-def derive_web3_account(wallet_key: Any, account_path: str = DEFAULT_EVM_ACCOUNT_PATH) -> Web3AccountInfo:
+def _wallet_root_for_web3(wallet_key: Any):
     if wallet_key is None:
         raise Web3Error("请先加载助记词")
     root = getattr(wallet_key, "root", None)
     if root is None:
         raise Web3Error("当前钱包没有可用于链上功能的根密钥")
+    return root
 
-    account_path = _normalize_path(account_path, DEFAULT_EVM_ACCOUNT_PATH)
-    address_path = _normalize_path(f"{account_path}/0/0", DEFAULT_EVM_ADDRESS_PATH)
-    account_hdkey = root.derive(bip32.parse_path(account_path))
+
+def _derive_web3_address_from_root(root, address_path: str) -> str:
     address_hdkey = root.derive(bip32.parse_path(address_path))
     address_pubkey = address_hdkey.to_public().get_public_key()
     uncompressed_pubkey = public_key_to_uncompressed_bytes(address_pubkey)
-    address = ethereum_address_from_pubkey(uncompressed_pubkey)
+    return ethereum_address_from_pubkey(uncompressed_pubkey)
+
+
+def derive_web3_address(
+    wallet_key: Any,
+    address_path: str = DEFAULT_EVM_ADDRESS_PATH,
+    checksum: bool = True,
+) -> str:
+    """Derive an EVM address from the exact full address path."""
+    root = _wallet_root_for_web3(wallet_key)
+    normalized_path = _normalize_path(address_path, DEFAULT_EVM_ADDRESS_PATH)
+    address = _derive_web3_address_from_root(root, normalized_path)
+    if checksum:
+        return ethereum_checksum_address(address)
+    return address
+
+
+def derive_web3_account(wallet_key: Any, account_path: str = DEFAULT_EVM_ACCOUNT_PATH) -> Web3AccountInfo:
+    root = _wallet_root_for_web3(wallet_key)
+
+    account_path = _normalize_path(account_path, DEFAULT_EVM_ACCOUNT_PATH)
+    address_path = _normalize_path("{}/0/0".format(account_path), DEFAULT_EVM_ADDRESS_PATH)
+    account_hdkey = root.derive(bip32.parse_path(account_path))
+    address = _derive_web3_address_from_root(root, address_path)
     display_address = ethereum_checksum_address(address)
     master_fingerprint = root.my_fingerprint
     origin_keypath = _keypath(
@@ -2644,9 +3454,9 @@ def derive_web3_account(wallet_key: Any, account_path: str = DEFAULT_EVM_ACCOUNT
         address=address,
         display_address=display_address,
         master_fingerprint=master_fingerprint,
-        master_fingerprint_hex=master_fingerprint.hex(),
-        compressed_pubkey_hex=account_hdkey.to_public().sec().hex(),
-        chain_code_hex=account_hdkey.chain_code.hex(),
+        master_fingerprint_hex=_bytes_hex(master_fingerprint),
+        compressed_pubkey_hex=_bytes_hex(account_hdkey.to_public().sec()),
+        chain_code_hex=_bytes_hex(account_hdkey.chain_code),
         xpub=account_hdkey.to_public().to_base58(),
         origin_keypath=origin_keypath,
         children_keypath=children_keypath,
@@ -2685,7 +3495,7 @@ def _parse_web3_transaction_request(request: Web3Request) -> EvmUnsignedTransact
     ):
         raise Web3Error("当前请求不是交易类型")
 
-    if request.source_format in {"tp", "tpr1", "w3r1"}:
+    if request.tp_request is not None:
         if request.tp_request is None or not isinstance(request.tp_request.tx_data, dict):
             raise Web3Error("TP 交易请求缺少 txData")
         return _parse_tp_transaction_request(request.tp_request.tx_data, request.chain_id)
@@ -2701,11 +3511,15 @@ def sign_web3_request(wallet_key: Any, request: Web3Request) -> Web3SigningResul
         raise Web3Error("当前钱包没有可用于链上功能的根密钥")
 
     derivation_path = _normalize_path(request.derivation_path, DEFAULT_EVM_ADDRESS_PATH)
-    derived_address = derive_web3_account(wallet_key, derivation_path.rsplit("/", 2)[0]).address
+    derived_address = derive_web3_address(
+        wallet_key,
+        derivation_path,
+        checksum=False,
+    )
     if request.address and normalize_eth_address(request.address) != normalize_eth_address(derived_address):
         raise Web3Error("请求地址与当前派生地址不一致")
 
-    unsigned_tx: Optional[EvmUnsignedTransaction] = None
+    unsigned_tx = None
     if request.data_type == Web3RequestDataType.PERSONAL_MESSAGE:
         digest = personal_sign_hash(request.sign_data)
     elif request.data_type == Web3RequestDataType.TYPED_DATA:
@@ -2713,8 +3527,8 @@ def sign_web3_request(wallet_key: Any, request: Web3Request) -> Web3SigningResul
         if not typed_json:
             try:
                 typed_json = request.sign_data.decode("utf-8")
-            except Exception as exc:
-                raise Web3Error("typedData 不是合法 UTF-8") from exc
+            except Exception:
+                raise Web3Error("typedData 不是合法 UTF-8")
         digest = typed_data_hash(typed_json)
     else:
         unsigned_tx = _parse_web3_transaction_request(request)
@@ -2734,7 +3548,7 @@ def sign_web3_request(wallet_key: Any, request: Web3Request) -> Web3SigningResul
             r,
             s,
         )
-        signature_hex = _ensure_hex_prefix(raw_tx.hex())
+        signature_hex = _ensure_hex_prefix(_bytes_hex(raw_tx))
     else:
         signature_hex = build_eth_message_signature_hex(rec_id, r, s)
 
@@ -2773,13 +3587,16 @@ def parse_scanned_web3_request(payload: Any, qr_format: Optional[int] = None) ->
     else:
         text = str(payload)
     normalized = text.strip()
-    if normalized.lower().startswith(("ur:", "tpr1:", "w3r1:")):
-        return parse_web3_request(normalized)
-    if normalized.lower().startswith("tp:"):
-        if normalized.lower().startswith("tp:multifragment-"):
-            raise Web3Error("tp:multifragment 需要先完成分片拼接")
-        return parse_web3_request(normalized)
-    raise Web3Error("无法识别的链上请求")
+    try:
+        return parse_web3_request(normalized, qr_format)
+    except Web3Error as first_error:
+        decoded = _smart_decode(normalized).strip()
+        if decoded and decoded != normalized:
+            try:
+                return parse_web3_request(decoded, qr_format)
+            except Web3Error:
+                pass
+        raise first_error
 
 
 # -----------------------------

@@ -19,6 +19,90 @@ def test_multisig_addresses_without_descriptor(mocker, m5stickv, tdata):
     )
 
 
+def test_show_receive_address_by_index(mocker, amigo, tdata):
+    from krux.pages.home_pages.addresses import Addresses
+    from krux.wallet import Wallet
+
+    wallet = Wallet(tdata.SINGLESIG_SIGNING_KEY)
+    ctx = create_ctx(mocker, None, wallet, None)
+    addresses_ui = Addresses(ctx)
+    mocker.patch(
+        "krux.pages.utils.Utils.capture_index_from_keypad",
+        return_value=2,
+    )
+    addresses_ui.show_address = mocker.MagicMock(return_value=0)
+
+    addresses_ui.show_receive_address_by_index()
+
+    expected_address = next(wallet.obtain_addresses(2, limit=1, branch_index=0))
+    addresses_ui.show_address.assert_called_once()
+    assert addresses_ui.show_address.call_args.args[0] == expected_address
+    assert addresses_ui.show_address.call_args.kwargs["title"].startswith("2.")
+
+
+def test_derive_address_from_path_supports_btc(mocker, amigo, tdata):
+    from krux.pages.home_pages.addresses import Addresses
+    from krux.wallet import Wallet
+
+    wallet = Wallet(tdata.SINGLESIG_SIGNING_KEY)
+    ctx = create_ctx(mocker, None, wallet, None)
+    addresses_ui = Addresses(ctx)
+
+    address_type, address = addresses_ui.derive_address_from_path(
+        "m/84h/0h/0h/0/2"
+    )
+
+    assert address_type == "BTC 主网 Native SegWit P2WPKH"
+    assert address == next(wallet.obtain_addresses(2, limit=1, branch_index=0))
+
+
+def test_derive_address_from_path_labels_bitcoin_address_types(mocker, amigo, tdata):
+    from krux.pages.home_pages.addresses import Addresses
+    from krux.wallet import Wallet
+
+    wallet = Wallet(tdata.SINGLESIG_SIGNING_KEY)
+    ctx = create_ctx(mocker, None, wallet, None)
+    addresses_ui = Addresses(ctx)
+
+    cases = [
+        ("m/44h/0h/0h/0/0", "BTC 主网 Legacy P2PKH"),
+        ("m/49h/0h/0h/0/0", "BTC 主网 Nested SegWit P2SH-P2WPKH"),
+        ("m/84h/0h/0h/0/0", "BTC 主网 Native SegWit P2WPKH"),
+        ("m/86h/0h/0h/0/0", "BTC 主网 Taproot P2TR"),
+        ("m/84h/1h/0h/0/0", "BTC 测试网 Native SegWit P2WPKH"),
+    ]
+
+    for path, expected_label in cases:
+        address_type, address = addresses_ui.derive_address_from_path(path)
+        assert address_type == expected_label
+        assert address
+
+
+def test_show_derived_address_by_path_supports_evm(mocker, amigo, tdata):
+    from krux.pages.home_pages.addresses import Addresses
+    from krux.wallet import Wallet
+
+    wallet = Wallet(tdata.SINGLESIG_SIGNING_KEY)
+    ctx = create_ctx(mocker, None, wallet, None)
+    addresses_ui = Addresses(ctx)
+    mocker.patch.object(
+        addresses_ui,
+        "_capture_derivation_path",
+        return_value="m/44h/60h/0h/0/0",
+    )
+    addresses_ui.show_address = mocker.MagicMock(return_value=0)
+    addresses_ui.prompt = mocker.MagicMock(return_value=True)
+
+    addresses_ui._show_derived_address_by_path("m/44h/60h/0h/0/0")
+
+    addresses_ui.show_address.assert_called_once()
+    assert (
+        addresses_ui.show_address.call_args.args[0]
+        == "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+    )
+    assert "EVM" in addresses_ui.show_address.call_args.kwargs["title"]
+
+
 def test_scan_address(mocker, m5stickv, tdata):
     from krux.pages.home_pages.addresses import Addresses
     from krux.wallet import Wallet

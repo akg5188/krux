@@ -1,0 +1,23 @@
+include _open-tools.txt
+
+# Datum Tool.
+press BUTTON_A
+
+screenshot tools-datum-tool-load.png
+
+# Load QR.
+press BUTTON_A
+qrcode datum-example-qr.png
+
+# Put the loaded menu back on screen before taking the screenshot.
+press_amigo_only BUTTON_B
+screenshot tools-datum-tool-loaded.png
+
+# Convert.
+press BUTTON_B
+press BUTTON_A
+press BUTTON_B
+press BUTTON_A
+x6 press BUTTON_B
+
+screenshot tools-datum-tool-convert.png

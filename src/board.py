@@ -10,7 +10,7 @@ from __future__ import annotations
 config = {
     "type": "amigo",
     "lcd": {"height": 320, "width": 480, "invert": 0, "dir": 40, "lcd_type": 1},
-    "sdcard": {"sclk": 11, "mosi": 10, "miso": 6, "cs": 12},
+    "sdcard": {"sclk": 11, "mosi": 10, "miso": 6, "cs": 26},
     "board_info": {
         "BOOT_KEY": 23,
         "LED_R": 14,
@@ -45,6 +45,10 @@ config = {
             "I2C_SDA": 27,
             "I2C_SCL": 24,
         },
-        "display": {"touch": True, "font": [12, 24], "font_wide": [24, 24]},
+        "display": {
+            "touch": True,
+            "font": [12, 24],
+            "font_wide": [24, 24],
+        },
     },
 }

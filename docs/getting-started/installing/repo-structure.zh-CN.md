@@ -2,9 +2,10 @@
 
 这页是给以后自己、或者其他 AI 接手用的。
 
-你现在看到的“两个 GitHub 仓库”，不是两个重复项目，而是一个主仓库加一个子模块：
+你现在看到的不是两个重复项目，而是一个上游项目、一份下游备份仓库和一个子模块：
 
-- `krux` 是主仓库，放界面、菜单、助记词、Web3、测试和大部分中文文档。
+- `selfcustody/krux` 是上游 Krux，负责通用功能和原始文档。
+- `krux`（`https://github.com/akg5188/krux`）是当前这份下游备份仓库，保留上游结构并叠加 Amigo 改造。
 - `firmware/MaixPy` 是 `krux` 的子模块，放 Amigo 这类硬件的底层板级支持、MicroPython 端口、屏幕、触摸和启动相关代码。
 
 换句话说：
@@ -12,9 +13,10 @@
 - 改用户能直接看到的功能，通常改 `krux`
 - 改硬件底层、驱动、板级适配，才进入 `firmware/MaixPy`
 
-## 这两个地址
+## 这三个地址
 
-- 主仓库：`https://github.com/akg5188/krux`
+- 上游项目：`https://github.com/selfcustody/krux`
+- 当前仓库：`https://github.com/akg5188/krux`
 - 子模块：`https://github.com/akg5188/MaixPy`
 
 ## 先记住怎么拉代码

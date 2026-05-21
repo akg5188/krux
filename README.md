@@ -19,6 +19,31 @@
 
 Krux is an open-source firmware facilitating the creation of Bitcoin signing devices from readily available components, such as Kendryte K210 devices. It transforms these devices into airgapped tools capable of handling transactions for both single and multisignature wallets, supporting offline signing via QR code or SD card, thus empowering users to securely self-custody their Bitcoin.
 
+## Project Lineage
+This repository is a downstream, Amigo-focused snapshot of the upstream [selfcustody/krux](https://github.com/selfcustody/krux) project.
+The upstream repo is the canonical Krux codebase for general firmware work; this branch keeps the same overall structure, then layers on Amigo-specific UI, Chinese docs, Web3 / TP work, and local maintenance notes.
+
+## 项目来源与改造边界
+这份仓库不是从零开始的新项目，而是基于上游 [selfcustody/krux](https://github.com/selfcustody/krux) 的下游快照。
+如果你要看原版 Krux 的通用文档和发行节奏，请优先参考上游仓库；如果你要接手这份 Amigo 改造版，请看下面这些本地文档。
+
+当前这份备份仓库的地址是 `https://github.com/akg5188/krux`，子模块 `MaixPy` 也已经单独备份到 `https://github.com/akg5188/MaixPy`。
+当前常用接手分支是 `amigo-snapshot`。
+
+这份改造主要集中在：
+
+- Amigo 触摸屏和大按钮 UI
+- 中文文档和中文截图
+- Web3 / TP / EVM 连接钱包与签名
+- 开机口令锁、无状态会话和签名前验证
+- 商用交付和维护说明
+
+不再作为主线支持的内容包括：
+
+- 智能卡 / PC-SC / ACR39U 链路
+- Android 方向
+- USB 办公打印机直连
+
 ---
 ## Disclaimer
 **WARNING**: *This software has not yet been formally audited by a third party. Use at your own risk!*
@@ -26,7 +51,7 @@ Krux is an open-source firmware facilitating the creation of Bitcoin signing dev
 ---
 
 ## 中文新手入口
-如果你第一次接触这份备份仓库，先按这个顺序看：
+如果你第一次接触这份基于上游 Krux 改出来的备份仓库，先按这个顺序看：
 
 1. [Krux 仓库结构与接手说明](docs/getting-started/installing/repo-structure.zh-CN.md)
 2. [Amigo 中文新手入口](docs/getting-started/index.zh-CN.md)

@@ -2,13 +2,15 @@
 
 这份教程适合第一次使用 Krux 的人。你不需要自己编译代码，只要下载已经打好的固件包，然后刷进 `Sipeed Matrix Amigo` 就行。
 
+这里说的“官方预编译包”，指的是上游 `selfcustody/krux` 的正式发行版，不是这份下游备份仓库自己重新打包的文件。
+
 如果你想自己改代码、自己编译，请看另一页：[Amigo 固件从源码编译并烧录](from-source.zh-CN.md)。
 如果你以后要接手维护，先看[Krux 仓库结构与接手说明](repo-structure.zh-CN.md)。
 如果你卡在智能卡、USB 口、打印机或者固件大小这些问题上，先看[Amigo 常见问题](../../faq.zh-CN.md)。
 
 ## 1. 下载固件包
 
-打开 Krux 的发布页，下载最新的官方 release 压缩包：
+打开上游 Krux 的发布页，下载最新的官方 release 压缩包：
 
 <https://github.com/selfcustody/krux/releases>
 

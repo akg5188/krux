@@ -2,6 +2,9 @@
 
 这页是给以后维护、换电脑、换 AI 时用的。目标不是“随便编出一个能用的固件”，而是从 GitHub 重新拉回这次已经验证过的 Amigo 快照，并尽量得到同一条构建基线。
 
+这条快照本质上是上游 `selfcustody/krux` 的 Amigo 下游改造线，在当前备份仓库里固定下来的一个可复现点。
+如果你只想看原版 Krux 的通用文档，请回到上游仓库；如果你要复现这份改造版，请按下面的固定值拉回备份仓库。
+
 如果你只是想先刷机，不需要自己编译，先看[Amigo 预编译包烧录](from-pre-built-release.zh-CN.md)。
 如果你只想直刷底层 `maixpy.bin`，看[Amigo 直接烧录 `maixpy.bin`](from-maixpy-bin.zh-CN.md)。
 
@@ -9,6 +12,7 @@
 
 | 项目 | 固定值 |
 | --- | --- |
+| 上游项目 | `https://github.com/selfcustody/krux` |
 | 父仓库 | `https://github.com/akg5188/krux` |
 | 父仓库分支 | `amigo-snapshot` |
 | 父仓库提交 | `8f22a11f07c8333d663fa1887d83f968e785e300` |

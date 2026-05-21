@@ -6,7 +6,9 @@ hide:
 
 # Krux 中文新手入口
 
-如果你拿到的是 `Sipeed Matrix Amigo`，这里可以直接当总目录用。
+这不是上游原版 Krux 的通用入口，而是基于 `selfcustody/krux` 的 Amigo 下游快照入口。
+
+如果你拿到的是 `Sipeed Matrix Amigo`，这里可以直接当总目录用；如果你要看原版 Krux 的通用文档，请回到上游仓库。
 
 ## 先按这个顺序看
 

@@ -18,4 +18,6 @@ Devices like the Maix Amigo, Yahboom, WonderMV, TZT or Embed Fire come ready to 
 
 Interacting seamlessly with leading coordinator wallets through QR codes, SD cards, and even thermal printers, the user-friendly firmware offers unique features to support transactions and mnemonic backups in an offline environment.
 
+This documentation site is maintained for a downstream, Amigo-focused snapshot of upstream `selfcustody/krux`. If you are looking for the vanilla Krux project, please use the upstream repository and its official documentation.
+
 To learn more about Krux, check out [Getting Started](getting-started/index.md).
